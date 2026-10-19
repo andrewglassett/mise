@@ -44,6 +44,8 @@ function icon(name, size = 22) {
     list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
     note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   }[name];
   return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
@@ -54,6 +56,42 @@ function toast(msg) {
   clearTimeout(toast.t);
   toast.t = setTimeout(() => toastEl.classList.remove('show'), 3200);
 }
+
+// ---------- theme ----------
+
+// index.html applies the saved theme before first paint; this keeps it in sync.
+const THEME_KEY = 'mise.theme.v1';
+const theme = loadTheme();
+const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+function loadTheme() {
+  try {
+    return { mode: null, retro: false, ...JSON.parse(localStorage.getItem(THEME_KEY)) };
+  } catch {
+    return { mode: null, retro: false };
+  }
+}
+
+function isDark() {
+  return theme.mode ? theme.mode === 'dark' : systemDark.matches;
+}
+
+function applyTheme() {
+  const root = document.documentElement;
+  if (theme.mode) root.dataset.theme = theme.mode;
+  else delete root.dataset.theme;
+  if (theme.retro) root.dataset.retro = '';
+  else delete root.dataset.retro;
+  try {
+    localStorage.setItem(THEME_KEY, JSON.stringify(theme));
+  } catch {
+    // ignore
+  }
+}
+
+systemDark.addEventListener('change', () => {
+  if (!theme.mode && document.body.dataset.view === 'library') renderLibrary();
+});
 
 function findRecipe(id) {
   return book?.recipes.find((r) => r.id === id);
@@ -233,8 +271,12 @@ function renderLibrary() {
       <aside class="filters">
         <div class="brand">
           <h1>Mise</h1>
-          <button class="sync" data-action="refresh" title="Check for new recipes">${icon('refresh', 15)}<span id="sync-text">${syncText()}</span></button>
+          <div class="brand-tools">
+            <button class="tool" data-action="toggle-dark" aria-pressed="${isDark()}" ${theme.retro ? 'disabled' : ''} title="Dark mode" aria-label="Dark mode">${icon(isDark() ? 'sun' : 'moon', 20)}</button>
+            <button class="tool tool-retro" data-action="toggle-retro" aria-pressed="${theme.retro}" title="90s mode" aria-label="90s mode">95</button>
+          </div>
         </div>
+        <button class="sync" data-action="refresh" title="Check for new recipes">${icon('refresh', 15)}<span id="sync-text">${syncText()}</span></button>
         <label class="search">
           ${icon('search')}
           <input id="q" type="search" placeholder="Search recipes or ingredients" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
@@ -255,6 +297,18 @@ function renderLibrary() {
       <main class="results" id="results"></main>
     </div>`;
   renderResults();
+}
+
+// Only visible in 90s mode.
+function retroFooter(where = 'top') {
+  if (where === 'top') {
+    return '<div class="retro-only retro-banner"><marquee scrollamount="4">★ Welcome to my recipe page! ★ Now with ' + book.recipes.length + ' recipes! ★ Sign my guestbook! ★</marquee></div>';
+  }
+  return `<div class="retro-only retro-footer">
+      <p><img src="icons/icon.svg" alt="" width="16" height="16"> Under construction</p>
+      <p>Best viewed in Netscape Navigator 4.0 at 800×600</p>
+      <p>You are visitor <span class="counter">${String(book.recipes.length * 1337).padStart(7, '0')}</span></p>
+    </div>`;
 }
 
 function renderResults() {
@@ -283,11 +337,11 @@ function renderResults() {
     byCat.get(r.category).push(r);
   }
   const order = book.categories || [...byCat.keys()];
-  el.innerHTML = order.filter((c) => byCat.has(c)).map((c) => `
+  el.innerHTML = retroFooter() + order.filter((c) => byCat.has(c)).map((c) => `
     <section class="cat-section">
       ${ui.category === 'All' ? `<h2>${esc(c)}</h2>` : ''}
       <div class="grid">${byCat.get(c).sort((a, b) => a.title.localeCompare(b.title)).map(card).join('')}</div>
-    </section>`).join('');
+    </section>`).join('') + retroFooter('bottom');
 }
 
 // ---------- recipe overview (ingredients screen) ----------
@@ -588,6 +642,17 @@ app.addEventListener('click', (e) => {
       Object.assign(ui, { q: '', category: 'All', tags: [], maxTime: 0 });
       saveUI();
       renderLibrary();
+      break;
+    case 'toggle-dark':
+      theme.mode = isDark() ? 'light' : 'dark';
+      applyTheme();
+      renderLibrary();
+      break;
+    case 'toggle-retro':
+      theme.retro = !theme.retro;
+      applyTheme();
+      renderLibrary();
+      if (theme.retro) toast('Welcome to Mise 95');
       break;
     case 'refresh':
       store.refresh().then(() => toast('Recipes are up to date'));
