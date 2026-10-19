@@ -6,7 +6,7 @@
 // should be a browser key restricted to the Drive API and to this site's URL.
 export const CONFIG = {
   driveFileId: '1ZT8OOjRZb9BdulizP7XLtBaN8HTRA6tR',
-  driveApiKey: '',
+  driveApiKey: 'AIzaSyDF7CU86xTLXhghekeGj4fybcznNUMRnW0',
 
   // Used when no API key is set (local development). data/ is gitignored.
   localDataUrl: 'data/recipes.json',

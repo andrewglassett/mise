@@ -26,6 +26,10 @@ function driveUrl(params) {
 
 async function getJSON(url) {
   const res = await fetch(url, { cache: 'no-store' });
+  // Drive answers 404 for files that exist but aren't shared by link.
+  if (res.status === 404 && url.startsWith(DRIVE)) {
+    throw new Error('recipes.json is not shared as "Anyone with the link"');
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
