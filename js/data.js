@@ -43,7 +43,8 @@ function validate(book) {
  * Loads the recipe book and keeps it fresh.
  *
  * Shows the cached copy immediately, then asks Drive for the file's
- * modifiedTime and downloads it only when that has changed. Checks again
+ * modifiedTime and downloads it only when that has changed (or, without a
+ * Drive key, re-reads CONFIG.recipesUrl). Checks again
  * whenever the app comes back to the foreground and every few minutes.
  */
 export function createStore(onChange) {
@@ -53,7 +54,7 @@ export function createStore(onChange) {
   const useDrive = Boolean(CONFIG.driveApiKey);
 
   const status = {
-    source: null, // 'drive' | 'cache' | 'local'
+    source: null, // 'drive' | 'url' | 'cache'
     checkedAt: null,
     error: null,
     newerSchema: false,
@@ -82,19 +83,25 @@ export function createStore(onChange) {
     publish(next, { updated });
   }
 
-  async function refreshFromLocal() {
-    const next = await getJSON(`${CONFIG.localDataUrl}?t=${Date.now()}`);
-    const updated = Boolean(book) && JSON.stringify(next) !== JSON.stringify(book);
-    status.source = 'local';
+  // Any other JSON URL: no modifiedTime to ask for, so compare the contents.
+  async function refreshFromUrl() {
+    const url = CONFIG.recipesUrl;
+    const next = await getJSON(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`);
+    const changed = !book || JSON.stringify(next) !== JSON.stringify(book);
+    status.source = 'url';
     status.checkedAt = Date.now();
     status.error = null;
-    if (!book || updated) publish(next, { updated });
-    else onChange(book, { ...status, updated: false });
+    if (changed) {
+      writeCache({ modifiedTime: null, book: next });
+      publish(next, { updated: Boolean(book) });
+    } else {
+      onChange(book, { ...status, updated: false });
+    }
   }
 
   function refresh() {
     if (inflight) return inflight;
-    inflight = (useDrive ? refreshFromDrive() : refreshFromLocal())
+    inflight = (useDrive ? refreshFromDrive() : refreshFromUrl())
       .catch((err) => {
         console.warn('Mise: could not refresh recipes', err);
         status.error = err.message || String(err);
@@ -107,7 +114,7 @@ export function createStore(onChange) {
   }
 
   function start() {
-    const cached = useDrive ? readCache() : null;
+    const cached = readCache();
     if (cached?.book) {
       modifiedTime = cached.modifiedTime;
       status.source = 'cache';

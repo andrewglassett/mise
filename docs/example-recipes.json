@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "categories": ["Breakfast", "Desserts"],
+  "recipes": [
+    {
+      "id": "buttermilk-pancakes",
+      "title": "Buttermilk Pancakes",
+      "category": "Breakfast",
+      "tags": ["vegetarian", "weeknight"],
+      "source": "Family recipe card",
+      "yield": "About 10 pancakes",
+      "times": {
+        "prep": { "text": "10 min", "minutes": 10 },
+        "cook": { "text": "15 min", "minutes": 15 }
+      },
+      "equipment": ["griddle or large skillet"],
+      "ingredientGroups": [
+        {
+          "name": null,
+          "items": [
+            { "id": "i1-1", "raw": "2 cups (240 g) all-purpose flour", "quantity": 2, "unit": "cup", "altMeasure": "240 g", "item": "all-purpose flour" },
+            { "id": "i1-2", "raw": "2 tablespoons sugar", "quantity": 2, "unit": "tbsp", "item": "sugar" },
+            { "id": "i1-3", "raw": "2 teaspoons baking powder", "quantity": 2, "unit": "tsp", "item": "baking powder" },
+            { "id": "i1-4", "raw": "½ teaspoon salt", "quantity": 0.5, "unit": "tsp", "item": "salt" },
+            { "id": "i1-5", "raw": "2 cups buttermilk", "quantity": 2, "unit": "cup", "item": "buttermilk" },
+            { "id": "i1-6", "raw": "2 large eggs", "quantity": 2, "size": "large", "item": "eggs" },
+            { "id": "i1-7", "raw": "3 tablespoons butter, melted, plus more for the pan", "quantity": 3, "unit": "tbsp", "item": "butter", "preparation": "melted, plus more for the pan" }
+          ]
+        }
+      ],
+      "stepGroups": [
+        {
+          "name": null,
+          "steps": [
+            { "id": "s1", "number": 1, "text": "Whisk the flour, sugar, baking powder and salt in a large bowl.", "ingredientRefs": ["i1-1", "i1-2", "i1-3", "i1-4"] },
+            { "id": "s2", "number": 2, "text": "In another bowl, whisk the buttermilk, eggs and melted butter. Pour into the dry ingredients and stir until just combined; a few lumps are fine. Rest 5 minutes.", "ingredientRefs": ["i1-5", "i1-6", "i1-7"], "timers": [{ "label": "5 minutes", "minSeconds": 300, "maxSeconds": 300 }] },
+            { "id": "s3", "number": 3, "text": "Heat the griddle over medium and brush with butter. Pour ¼ cup batter per pancake and cook 2–3 minutes, until bubbles form on top.", "ingredientRefs": ["i1-7"], "timers": [{ "label": "2–3 minutes", "minSeconds": 120, "maxSeconds": 180 }] },
+            { "id": "s4", "number": 4, "text": "Flip and cook 1–2 minutes more, until golden. Serve right away.", "timers": [{ "label": "1–2 minutes", "minSeconds": 60, "maxSeconds": 120 }] }
+          ]
+        }
+      ],
+      "notes": ["Keep finished pancakes warm on a sheet pan in a 200°F oven."],
+      "type": "recipe",
+      "status": "complete"
+    },
+    {
+      "id": "brown-butter-blondies",
+      "title": "Brown Butter Blondies",
+      "category": "Desserts",
+      "tags": [],
+      "source": null,
+      "yield": "16 squares",
+      "times": {
+        "prep": { "text": "20 min", "minutes": 20 },
+        "bake": { "text": "25 min", "minutes": 25 }
+      },
+      "equipment": ["8-inch square pan"],
+      "ingredientGroups": [
+        {
+          "name": "Blondies",
+          "items": [
+            { "id": "i1-1", "raw": "½ cup (113 g) unsalted butter", "quantity": 0.5, "unit": "cup", "altMeasure": "113 g", "item": "unsalted butter" },
+            { "id": "i1-2", "raw": "1 cup packed brown sugar", "quantity": 1, "unit": "cup", "item": "brown sugar", "note": "packed" },
+            { "id": "i1-3", "raw": "1 large egg", "quantity": 1, "size": "large", "item": "egg" },
+            { "id": "i1-4", "raw": "1 teaspoon vanilla extract", "quantity": 1, "unit": "tsp", "item": "vanilla extract" },
+            { "id": "i1-5", "raw": "1 cup (125 g) all-purpose flour", "quantity": 1, "unit": "cup", "altMeasure": "125 g", "item": "all-purpose flour" },
+            { "id": "i1-6", "raw": "¼ teaspoon salt", "quantity": 0.25, "unit": "tsp", "item": "salt" }
+          ]
+        },
+        {
+          "name": "Topping",
+          "items": [
+            { "id": "i2-1", "raw": "½ cup chocolate chips (optional)", "quantity": 0.5, "unit": "cup", "item": "chocolate chips", "optional": true },
+            { "id": "i2-2", "raw": "Flaky salt, for sprinkling", "item": "flaky salt", "preparation": "for sprinkling" }
+          ]
+        }
+      ],
+      "stepGroups": [
+        {
+          "name": "Batter",
+          "steps": [
+            { "id": "s1", "number": 1, "text": "Preheat the oven to 350°F and line the pan with parchment.", "temperatures": [{ "value": 350, "unit": "F" }] },
+            { "id": "s2", "number": 2, "text": "Melt the butter in a small pan over medium heat, swirling, until it smells nutty and the solids turn brown, 4–6 minutes. Pour into a bowl and cool 10 minutes.", "ingredientRefs": ["i1-1"], "timers": [{ "label": "4–6 minutes", "minSeconds": 240, "maxSeconds": 360 }, { "label": "10 minutes", "minSeconds": 600, "maxSeconds": 600 }] },
+            { "id": "s3", "number": 3, "text": "Whisk in the brown sugar, then the egg and vanilla. Stir in the flour and salt.", "ingredientRefs": ["i1-2", "i1-3", "i1-4", "i1-5", "i1-6"] }
+          ]
+        },
+        {
+          "name": "Bake",
+          "steps": [
+            { "id": "s4", "number": 4, "text": "Spread in the pan, scatter the chocolate chips and flaky salt on top, and bake 22–25 minutes, until the edges are golden.", "ingredientRefs": ["i2-1", "i2-2"], "timers": [{ "label": "22–25 minutes", "minSeconds": 1320, "maxSeconds": 1500 }] },
+            { "id": "s5", "number": 5, "text": "Cool completely in the pan before cutting into squares." }
+          ]
+        }
+      ],
+      "notes": ["Keeps 4 days in an airtight container."],
+      "type": "recipe",
+      "status": "complete"
+    }
+  ]
+}

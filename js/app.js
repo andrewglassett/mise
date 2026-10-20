@@ -250,7 +250,6 @@ function syncText() {
   if (!syncInfo) return '';
   if (syncInfo.newerSchema) return 'Data format is newer than this app; reload to update';
   if (syncInfo.error) return book ? 'Offline · showing saved recipes' : `Couldn't load recipes (${esc(syncInfo.error)})`;
-  if (syncInfo.source === 'local') return 'Local data file';
   if (syncInfo.source === 'cache') return 'Saved copy · checking for updates…';
   if (syncInfo.checkedAt) {
     const t = new Date(syncInfo.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
