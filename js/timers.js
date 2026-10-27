@@ -14,6 +14,8 @@ let tickHandle = null;
 // or until the timer is stopped, opened or dismissed.
 const ALARM_MS = 60 * 1000;
 const CHIME_EVERY_MS = 3000;
+// A chime takes about 2 seconds, so none starts this close to the alarm's end.
+const CHIME_CUTOFF_MS = 2500;
 let lastChimeAt = 0;
 
 function load() {
@@ -206,13 +208,14 @@ function tick() {
     if (t.alarmUntil && !t.rangOut && now >= t.alarmUntil) {
       t.rangOut = true;
       changed = true;
-      if (now - t.alarmUntil < 5000) outro();
+      if (now - t.alarmUntil < 30000) outro();
     }
   }
   if (changed) save();
 
   const ringing = timers.some((t) => isRinging(t, now));
-  if (ringing && now - lastChimeAt >= CHIME_EVERY_MS) {
+  const chimeFits = timers.some((t) => t.alarmUntil - now > CHIME_CUTOFF_MS);
+  if (ringing && chimeFits && now - lastChimeAt >= CHIME_EVERY_MS) {
     lastChimeAt = now;
     chime();
   }
