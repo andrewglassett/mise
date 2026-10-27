@@ -36,6 +36,7 @@ Only a few fields are required. The rest make cook mode better: timers, preheat 
 | `stepGroups` | yes | See below. Use `[]` for a recipe with no steps. |
 | `notes` | no | Tips, storage, make-ahead. Shown on the ingredients screen and at the end. |
 | `type` | no | `"recipe"` (default) or `"notes"`. Notes pages are shown read-only, with no cook mode. |
+| `cookMode` | no | `"steps"` or `"list"`. Leave it out and the app decides: recipes with 3 or fewer steps and under 450 characters of instructions show the method as a list on the ingredients screen; longer ones get step-by-step cook mode. Set it only to override that choice. |
 | `methodSource` | no | Set to `"suggested"` when the method isn't from the original recipe. The app shows an "Untested method" badge. |
 | `nutrition` | no | Free text. |
 

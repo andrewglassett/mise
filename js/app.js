@@ -113,8 +113,21 @@ function ingredientIndex(recipe) {
   return map;
 }
 
+// Short recipes read better as a list on the ingredients screen than as a
+// step-by-step walkthrough. A recipe's `cookMode` ("list" or "steps") overrides
+// this rule.
+const LIST_MAX_STEPS = 3;
+const LIST_MAX_CHARS = 450;
+
+function cookMode(recipe) {
+  if (recipe.cookMode === 'list' || recipe.cookMode === 'steps') return recipe.cookMode;
+  const steps = allSteps(recipe);
+  const chars = steps.reduce((n, s) => n + s.text.length, 0);
+  return steps.length <= LIST_MAX_STEPS && chars <= LIST_MAX_CHARS ? 'list' : 'steps';
+}
+
 function canCook(recipe) {
-  return recipe.type !== 'notes' && allSteps(recipe).length > 0;
+  return recipe.type !== 'notes' && allSteps(recipe).length > 0 && cookMode(recipe) === 'steps';
 }
 
 function scaleFor(id) {
@@ -349,6 +362,7 @@ function renderOverview(recipe) {
   document.body.dataset.view = 'overview';
   const steps = allSteps(recipe);
   const cook = canCook(recipe);
+  const listView = steps.length > 0 && !cook;
   const heat = preheatTemp(recipe);
   const times = Object.entries(recipe.times || {}).filter(([, v]) => v?.text);
   const checked = checkedFor(recipe.id).length;
@@ -373,6 +387,7 @@ function renderOverview(recipe) {
         </section>
         <section class="panel info-panel">
           ${recipe.methodSource === 'suggested' ? '<p class="banner banner-warn">Untested method: this is a typical method, not the original author\'s.</p>' : ''}
+          ${listView ? methodHTML(recipe, { primary: true }) : ''}
           ${heat ? `<div class="callout">${icon('flame', 28)}<div><span>Preheat</span><strong>${heat.value}°${esc(heat.unit)}</strong></div></div>` : ''}
           <dl class="facts">
             ${recipe.yield ? `<div><dt>Yield</dt><dd>${esc(recipe.yield)}</dd></div>` : ''}
@@ -383,8 +398,8 @@ function renderOverview(recipe) {
           ${recipe.equipment?.length ? `<h3>Equipment</h3><ul class="bullets">${recipe.equipment.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
           ${recipe.nutrition ? `<h3>Nutrition</h3><p>${esc(recipe.nutrition)}</p>` : ''}
           ${recipe.notes?.length ? `<h3>Notes</h3><ul class="bullets">${recipe.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-          ${!cook && steps.length === 0 && recipe.type !== 'notes' ? '<p class="muted">This recipe has no steps yet.</p>' : ''}
-          ${recipe.type === 'notes' && steps.length ? stepsList(steps) : ''}
+          ${steps.length === 0 && recipe.type !== 'notes' ? '<p class="muted">This recipe has no steps yet.</p>' : ''}
+          ${steps.length && !listView ? methodHTML(recipe) : ''}
         </section>
       </div>
       ${cook ? `
@@ -394,8 +409,19 @@ function renderOverview(recipe) {
     </div>`;
 }
 
-function stepsList(steps) {
-  return `<h3>Method</h3><ol class="method">${steps.map((s) => `<li>${esc(s.text)}</li>`).join('')}</ol>`;
+// The whole method as a numbered list. For short recipes it's the main way to
+// read the recipe; for longer ones it's a preview before cook mode.
+function methodHTML(recipe, { primary = false } = {}) {
+  const groups = (recipe.stepGroups || []).filter((g) => g.steps.length);
+  return `
+    <div class="method-block ${primary ? 'is-primary' : ''}">
+      ${primary ? '<h2>Method</h2>' : '<h3>Method</h3>'}
+      ${groups.map((g) => `
+        ${g.name ? `<h4 class="ing-heading">${esc(g.name)}</h4>` : ''}
+        <ol class="method" start="${g.steps[0].number}">
+          ${g.steps.map((s) => `<li>${stepTextHTML(s)}</li>`).join('')}
+        </ol>`).join('')}
+    </div>`;
 }
 
 // ---------- step walkthrough ----------
@@ -408,7 +434,7 @@ function stepTextHTML(step) {
     const label = esc(t.label);
     const at = html.indexOf(label, from);
     if (at === -1) return;
-    const btn = `<button class="inline-timer" data-action="timer" data-timer="${i}">${icon('timer', 18)}${label}</button>`;
+    const btn = `<button class="inline-timer" data-action="timer" data-step="${step.number}" data-timer="${i}">${icon('timer', 18)}${label}</button>`;
     html = html.slice(0, at) + btn + html.slice(at + label.length);
     from = at + btn.length;
   });
@@ -453,7 +479,7 @@ function renderStep(recipe, n) {
             <div class="timer-chips">
               ${step.timers.map((t, i) => {
                 const on = isRunning(recipe.id, step.number, t.label);
-                return `<button class="timer-chip ${on ? 'is-on' : ''}" data-action="timer" data-timer="${i}">${icon('timer', 20)}<span>${on ? 'Running' : 'Start'} · ${esc(t.label)}</span></button>`;
+                return `<button class="timer-chip ${on ? 'is-on' : ''}" data-action="timer" data-step="${step.number}" data-timer="${i}">${icon('timer', 20)}<span>${on ? 'Running' : 'Start'} · ${esc(t.label)}</span></button>`;
               }).join('')}
             </div>` : ''}
         </section>
@@ -469,7 +495,6 @@ function renderStep(recipe, n) {
       </footer>
     </div>`;
 
-  currentView.step = step;
   bindSwipe(document.getElementById('step'), prevHref, nextHref);
 }
 
@@ -675,7 +700,7 @@ app.addEventListener('click', (e) => {
       rerender();
       break;
     case 'timer': {
-      const step = currentView?.step;
+      const step = allSteps(recipe).find((x) => x.number === Number(el.dataset.step));
       const t = step?.timers?.[Number(el.dataset.timer)];
       if (!t) break;
       startTimer({

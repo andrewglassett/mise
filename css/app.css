@@ -275,8 +275,17 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
 .facts dd { margin: 2px 0 0; font-weight: 600; }
 
 .bullets, .method { margin: 0; padding-left: 20px; }
-.bullets li, .method li { margin: 6px 0; }
-.method li { white-space: pre-line; }
+.bullets li { margin: 6px 0; }
+
+.method { padding-left: 26px; }
+.method li { margin: 10px 0; padding-left: 4px; }
+.method li::marker { color: var(--accent); font-weight: 700; }
+.method .temp { color: var(--accent); font-weight: 600; }
+.method .inline-timer { padding: 0 8px 0 4px; }
+.method-block .ing-heading { margin-top: 16px; }
+.method-block.is-primary { margin-bottom: 24px; }
+.method-block.is-primary h2 { margin-bottom: 4px; }
+.method-block.is-primary .method { font: 1.2rem/1.5 var(--serif); }
 
 .startbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
@@ -380,7 +389,6 @@ body[data-view="overview"] .timers { bottom: calc(var(--bottom) + 100px); }
   .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .timers { left: auto; width: 360px; }
   .overview-body { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; padding-top: 24px; }
-  .info-panel { position: sticky; top: 96px; }
 }
 
 /* iPad landscape (and desktop): sidebar library, side-by-side cook mode */
