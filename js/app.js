@@ -393,7 +393,6 @@ function renderOverview(recipe) {
             ${recipe.yield ? `<div><dt>Yield</dt><dd>${esc(recipe.yield)}</dd></div>` : ''}
             ${times.map(([k, v]) => `<div><dt>${timeLabel(k)}</dt><dd>${esc(v.text)}</dd></div>`).join('')}
             ${cook ? `<div><dt>Steps</dt><dd>${steps.length}</dd></div>` : ''}
-            ${recipe.source ? `<div class="wide"><dt>Source</dt><dd>${esc(recipe.source)}</dd></div>` : ''}
           </dl>
           ${recipe.equipment?.length ? `<h3>Equipment</h3><ul class="bullets">${recipe.equipment.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
           ${recipe.nutrition ? `<h3>Nutrition</h3><p>${esc(recipe.nutrition)}</p>` : ''}
@@ -401,6 +400,7 @@ function renderOverview(recipe) {
           ${steps.length === 0 && recipe.type !== 'notes' ? '<p class="muted">This recipe has no steps yet.</p>' : ''}
           ${steps.length && !listView ? methodHTML(recipe) : ''}
         </section>
+        ${recipe.source ? `<p class="credit">Source: ${esc(recipe.source)}</p>` : ''}
       </div>
       ${cook ? `
         <footer class="startbar">
