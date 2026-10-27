@@ -10,6 +10,12 @@ let onOpen = null;
 let audio = null;
 let tickHandle = null;
 
+// When a timer finishes, the chime repeats and the screen flashes for a minute,
+// or until the timer is stopped, opened or dismissed.
+const ALARM_MS = 60 * 1000;
+const CHIME_EVERY_MS = 3000;
+let lastChimeAt = 0;
+
 function load() {
   try {
     return JSON.parse(localStorage.getItem(KEY)) || [];
@@ -44,6 +50,7 @@ function unlockAudio() {
 }
 
 function chime() {
+  if (audio?.state === 'suspended') audio.resume();
   if (audio) {
     const t0 = audio.currentTime;
     for (let i = 0; i < 3; i++) {
@@ -107,6 +114,18 @@ function togglePause(id) {
   render();
 }
 
+function isRinging(t, now = Date.now()) {
+  return (t.alarmUntil || 0) > now;
+}
+
+function silence(id) {
+  const t = timers.find((x) => x.id === id);
+  if (!t) return;
+  t.alarmUntil = 0;
+  save();
+  render();
+}
+
 function dismiss(id) {
   timers = timers.filter((x) => x.id !== id);
   save();
@@ -120,15 +139,23 @@ function tick() {
   for (const t of timers) {
     if (!t.alerted && t.pausedRemaining == null && remaining(t, now) <= 0) {
       t.alerted = true;
+      t.alarmUntil = now + ALARM_MS;
       changed = true;
-      chime();
     }
   }
   if (changed) save();
+
+  const ringing = timers.some((t) => isRinging(t, now));
+  if (ringing && now - lastChimeAt >= CHIME_EVERY_MS) {
+    lastChimeAt = now;
+    chime();
+  }
+  document.body.classList.toggle('is-alarming', ringing);
   render();
   if (!timers.length) {
     clearInterval(tickHandle);
     tickHandle = null;
+    document.body.classList.remove('is-alarming');
   }
 }
 
@@ -162,12 +189,13 @@ function render() {
       sub = `Paused · ${sub}`;
     }
     return `
-      <div class="timer ${done ? 'is-done' : ''} ${paused ? 'is-paused' : ''}">
+      <div class="timer ${done ? 'is-done' : ''} ${paused ? 'is-paused' : ''} ${isRinging(t, now) ? 'is-ringing' : ''}">
         <button class="timer-main" data-timer-open="${t.id}" aria-label="Go to step ${t.stepNumber}">
           <span class="timer-clock">${clock}</span>
           <span class="timer-label">${escapeHTML(t.label)}</span>
           <span class="timer-sub">${sub}</span>
         </button>
+        ${isRinging(t, now) ? `<button class="timer-stop" data-timer-silence="${t.id}">${icon('bellOff')}Stop</button>` : ''}
         ${done ? '' : `<button class="timer-btn" data-timer-pause="${t.id}" aria-label="${paused ? 'Resume' : 'Pause'}">${paused ? icon('play') : icon('pause')}</button>`}
         <button class="timer-btn" data-timer-dismiss="${t.id}" aria-label="Dismiss timer">${icon('x')}</button>
       </div>`;
@@ -179,6 +207,7 @@ function icon(name) {
     play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
     pause: '<path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor" stroke="none"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    bellOff: '<path d="M9.5 19a2.5 2.5 0 0 0 5 0M6 16h12l-1.5-2V10a4.5 4.5 0 0 0-7.6-3.3M7.5 10v4L6 16M4 4l16 16"/>',
   };
   return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">${paths[name]}</svg>`;
 }
@@ -190,11 +219,16 @@ export function mountTimers(el, open) {
     const p = e.target.closest('[data-timer-pause]');
     const d = e.target.closest('[data-timer-dismiss]');
     const o = e.target.closest('[data-timer-open]');
-    if (p) togglePause(p.dataset.timerPause);
+    const m = e.target.closest('[data-timer-silence]');
+    if (m) silence(m.dataset.timerSilence);
+    else if (p) togglePause(p.dataset.timerPause);
     else if (d) dismiss(d.dataset.timerDismiss);
     else if (o) {
       const t = timers.find((x) => x.id === o.dataset.timerOpen);
-      if (t) onOpen?.(t);
+      if (t) {
+        if (isRinging(t)) silence(t.id);
+        onOpen?.(t);
+      }
     }
   });
   render();

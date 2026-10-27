@@ -419,6 +419,20 @@ body[data-view="overview"] .timers { bottom: calc(var(--bottom) + 100px); }
 .timer.is-done { background: var(--accent); color: var(--accent-ink); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { transform: scale(1.02); } }
 
+.timer-stop {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 44px; padding: 0 14px;
+  border-radius: 999px; background: var(--accent-ink); color: var(--accent); font-weight: 700;
+}
+.timer-stop svg { width: 18px; height: 18px; }
+
+/* While an alarm rings, the whole screen pulses softly, for when the sound is off. */
+.alarm-flash {
+  position: fixed; inset: 0; z-index: 15; pointer-events: none;
+  background: var(--accent); opacity: 0;
+}
+body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite; }
+@keyframes alarm-flash { 0%, 100% { opacity: 0; } 50% { opacity: 0.22; } }
+
 /* ---------- tablet & landscape ---------- */
 
 @media (min-width: 700px) {
@@ -453,6 +467,11 @@ body[data-view="overview"] .timers { bottom: calc(var(--bottom) + 100px); }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
+}
+
+/* With reduced motion, a steady tint instead of a pulse. */
+@media (prefers-reduced-motion: reduce) {
+  body.is-alarming .alarm-flash { opacity: 0.15; }
 }
 
 /* ---------- 90s mode: Windows 95 era ---------- */
@@ -610,6 +629,8 @@ body[data-view="overview"] .timers { bottom: calc(var(--bottom) + 100px); }
 [data-retro] .timer { background: #c0c0c0; color: #000; box-shadow: var(--raised); padding: 4px 4px 4px 12px; }
 [data-retro] .timer-clock { font-family: "Courier New", monospace; font-weight: 700; background: #000; color: #0f0; padding: 4px 6px; }
 [data-retro] .timer.is-done { background: #ff0; color: #000; animation: blink 0.8s steps(1) infinite; }
+[data-retro] .timer-stop { background: #c0c0c0; color: #000; box-shadow: var(--raised); }
+[data-retro] .alarm-flash { background: #ff0; }
 @keyframes blink { 50% { background: #c0c0c0; } }
 [data-retro] .toast { background: #ffffe1; color: #000; box-shadow: inset 0 0 0 1px #000, 2px 2px 0 #000; }
 
