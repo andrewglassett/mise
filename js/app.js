@@ -15,7 +15,9 @@ let currentView = null;
 // ---------- small helpers ----------
 
 function loadUI() {
-  const defaults = { q: '', category: 'All', tags: [], maxTime: 0, scale: {}, checked: {} };
+  const defaults = {
+    q: '', category: 'All', tags: [], maxTime: 0, scale: {}, checked: {}, favorites: [], recent: [],
+  };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem('mise.ui.v1')) };
   } catch {
@@ -44,6 +46,7 @@ function icon(name, size = 22) {
     list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
     note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>',
+    star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z"/>',
     moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   }[name];
@@ -239,24 +242,58 @@ function searchScore(r, q) {
   return score;
 }
 
-function card(r) {
+function isFavorite(id) {
+  return ui.favorites.includes(id);
+}
+
+function badgesHTML(r) {
+  return [
+    ...(r.tags || []).map((t) => `<span class="pill">${esc(t)}</span>`),
+    r.type === 'notes' ? `<span class="pill pill-quiet">${icon('note', 14)} Notes</span>` : '',
+    r.methodSource === 'suggested' ? '<span class="pill pill-warn">Untested method</span>' : '',
+  ].join('');
+}
+
+function favMark(r) {
+  return isFavorite(r.id) ? `<span class="fav-mark" aria-label="Favorite">${icon('star', 15)}</span>` : '';
+}
+
+// Cards are for the short rows on the home screen.
+function card(r, { showCategory = true } = {}) {
   const mins = totalMinutes(r);
   const meta = [
     mins ? `${icon('clock', 16)} ${fmtMinutes(mins)}` : '',
     r.yield ? esc(r.yield) : '',
   ].filter(Boolean).join('<span class="dot">·</span>');
-  const badges = [
-    ...(r.tags || []).map((t) => `<span class="pill">${esc(t)}</span>`),
-    r.type === 'notes' ? `<span class="pill pill-quiet">${icon('note', 14)} Notes</span>` : '',
-    r.methodSource === 'suggested' ? '<span class="pill pill-warn">Untested method</span>' : '',
-  ].join('');
+  const badges = badgesHTML(r);
   return `
     <a class="card" href="#/r/${encodeURIComponent(r.id)}">
-      <span class="card-cat">${esc(r.category)}</span>
-      <span class="card-title">${esc(r.title)}</span>
+      ${showCategory ? `<span class="card-cat">${esc(r.category)}</span>` : ''}
+      <span class="card-title">${favMark(r)}${esc(r.title)}</span>
       ${meta ? `<span class="card-meta">${meta}</span>` : ''}
       ${badges ? `<span class="card-badges">${badges}</span>` : ''}
     </a>`;
+}
+
+// Compact rows are for full lists, so hundreds of recipes stay scannable.
+function row(r, { showCategory = false } = {}) {
+  const mins = totalMinutes(r);
+  const sub = [showCategory ? esc(r.category) : '', r.yield ? esc(r.yield) : '']
+    .filter(Boolean).join('<span class="dot">·</span>');
+  const badges = badgesHTML(r);
+  return `
+    <a class="row" href="#/r/${encodeURIComponent(r.id)}">
+      <span class="row-main">
+        <span class="row-title">${favMark(r)}${esc(r.title)}</span>
+        ${sub || badges ? `<span class="row-sub">${sub}${badges ? `<span class="row-badges">${badges}</span>` : ''}</span>` : ''}
+      </span>
+      <span class="row-time">${mins ? fmtMinutes(mins) : ''}</span>
+      ${icon('next', 18)}
+    </a>`;
+}
+
+function rowsHTML(list, opts) {
+  return `<div class="rows">${list.map((r) => row(r, opts)).join('')}</div>`;
 }
 
 function syncText() {
@@ -323,9 +360,52 @@ function retroFooter(where = 'top') {
     </div>`;
 }
 
+function byTitle(a, b) {
+  return a.title.localeCompare(b.title);
+}
+
+function isHome() {
+  return ui.category === 'All' && !ui.q.trim() && !ui.tags.length && !ui.maxTime;
+}
+
+const SHELF_SIZE = 8;
+
+function shelf(title, list, { category = null, showCategory = true } = {}) {
+  if (!list.length) return '';
+  const more = category && list.length > SHELF_SIZE;
+  return `
+    <section class="shelf">
+      <div class="shelf-head">
+        <h2>${esc(title)} <span class="count">${list.length}</span></h2>
+        ${category ? `<button class="linkbtn" data-action="category" data-cat="${esc(category)}">See all</button>` : ''}
+      </div>
+      <div class="shelf-row">
+        ${list.slice(0, SHELF_SIZE).map((r) => card(r, { showCategory })).join('')}
+        ${more ? `<button class="card card-more" data-action="category" data-cat="${esc(category)}">See all ${list.length} ${icon('next', 18)}</button>` : ''}
+      </div>
+    </section>`;
+}
+
+// Home: recent and favorite recipes, then a short row per category.
+function renderHome(el) {
+  const byId = new Map(book.recipes.map((r) => [r.id, r]));
+  const recent = ui.recent.map((id) => byId.get(id)).filter(Boolean);
+  const favorites = ui.favorites.map((id) => byId.get(id)).filter(Boolean).sort(byTitle);
+  const cats = book.categories || [...new Set(book.recipes.map((r) => r.category))];
+  el.innerHTML = retroFooter()
+    + shelf('Recent', recent)
+    + shelf('Favorites', favorites)
+    + cats.map((c) => shelf(c, book.recipes.filter((r) => r.category === c).sort(byTitle), { category: c, showCategory: false })).join('')
+    + retroFooter('bottom');
+}
+
 function renderResults() {
   const el = document.getElementById('results');
   if (!el) return;
+  if (isHome()) {
+    renderHome(el);
+    return;
+  }
   const q = ui.q.trim().toLowerCase();
   const list = book.recipes
     .filter(matches)
@@ -337,29 +417,42 @@ function renderResults() {
     return;
   }
 
+  const count = `<p class="result-count">${list.length} recipe${list.length === 1 ? '' : 's'}</p>`;
+
   if (q) {
-    list.sort((a, b) => b[1] - a[1] || a[0].title.localeCompare(b[0].title));
-    el.innerHTML = `<div class="grid">${list.map(([r]) => card(r)).join('')}</div>`;
+    list.sort((a, b) => b[1] - a[1] || byTitle(a[0], b[0]));
+    el.innerHTML = count + rowsHTML(list.map(([r]) => r), { showCategory: true });
     return;
   }
 
+  if (ui.category !== 'All') {
+    el.innerHTML = `<h2 class="list-title">${esc(ui.category)}</h2>${count}${rowsHTML(list.map(([r]) => r).sort(byTitle))}`;
+    return;
+  }
+
+  // All categories with a tag or time filter: group the rows by category.
   const byCat = new Map();
   for (const [r] of list) {
     if (!byCat.has(r.category)) byCat.set(r.category, []);
     byCat.get(r.category).push(r);
   }
   const order = book.categories || [...byCat.keys()];
-  el.innerHTML = retroFooter() + order.filter((c) => byCat.has(c)).map((c) => `
+  el.innerHTML = count + order.filter((c) => byCat.has(c)).map((c) => `
     <section class="cat-section">
-      ${ui.category === 'All' ? `<h2>${esc(c)}</h2>` : ''}
-      <div class="grid">${byCat.get(c).sort((a, b) => a.title.localeCompare(b.title)).map(card).join('')}</div>
-    </section>`).join('') + retroFooter('bottom');
+      <h2>${esc(c)}</h2>
+      ${rowsHTML(byCat.get(c).sort(byTitle))}
+    </section>`).join('');
 }
 
 // ---------- recipe overview (ingredients screen) ----------
 
 function renderOverview(recipe) {
   document.body.dataset.view = 'overview';
+  if (ui.recent[0] !== recipe.id) {
+    ui.recent = [recipe.id, ...ui.recent.filter((id) => id !== recipe.id)].slice(0, SHELF_SIZE);
+    saveUI();
+  }
+  const fav = isFavorite(recipe.id);
   const steps = allSteps(recipe);
   const cook = canCook(recipe);
   const listView = steps.length > 0 && !cook;
@@ -375,6 +468,7 @@ function renderOverview(recipe) {
           <span class="eyebrow">${esc(recipe.category)}</span>
           <h1>${esc(recipe.title)}</h1>
         </div>
+        <button class="iconbtn fav-btn ${fav ? 'is-fav' : ''}" data-action="favorite" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('star')}</button>
       </header>
       <div class="overview-body">
         <section class="panel ingredients-panel">
@@ -643,6 +737,14 @@ app.addEventListener('click', (e) => {
       ui.category = el.dataset.cat;
       saveUI();
       renderLibrary();
+      window.scrollTo(0, 0);
+      break;
+    case 'favorite':
+      ui.favorites = isFavorite(recipe.id)
+        ? ui.favorites.filter((id) => id !== recipe.id)
+        : [...ui.favorites, recipe.id];
+      saveUI();
+      rerender();
       break;
     case 'tag': {
       const t = el.dataset.tag;
