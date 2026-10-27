@@ -71,6 +71,65 @@ function chime() {
   navigator.vibrate?.([300, 150, 300, 150, 300]);
 }
 
+export function outro(ctx = audio) {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const t0 = ctx.currentTime + 0.05;
+  const dur = 1.5;
+
+  const tone = ctx.createOscillator();
+  tone.type = 'sawtooth';
+  tone.frequency.setValueAtTime(115, t0);
+  tone.frequency.exponentialRampToValueAtTime(62, t0 + dur);
+
+  const wobble = ctx.createOscillator();
+  const wobbleDepth = ctx.createGain();
+  wobble.frequency.value = 23;
+  wobbleDepth.gain.value = 28;
+  wobble.connect(wobbleDepth).connect(tone.frequency);
+
+  const flutter = ctx.createOscillator();
+  const flutterDepth = ctx.createGain();
+  const amp = ctx.createGain();
+  flutter.type = 'square';
+  flutter.frequency.setValueAtTime(19, t0);
+  flutter.frequency.linearRampToValueAtTime(8, t0 + dur);
+  flutterDepth.gain.value = 0.3;
+  amp.gain.value = 0.55;
+  flutter.connect(flutterDepth).connect(amp.gain);
+
+  const noise = ctx.createBufferSource();
+  const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  noise.buffer = buf;
+  const noiseBand = ctx.createBiquadFilter();
+  const noiseLevel = ctx.createGain();
+  noiseBand.type = 'bandpass';
+  noiseBand.frequency.value = 180;
+  noiseBand.Q.value = 1.5;
+  noiseLevel.gain.value = 0.35;
+  noise.connect(noiseBand).connect(noiseLevel).connect(amp);
+
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.setValueAtTime(520, t0);
+  lowpass.frequency.exponentialRampToValueAtTime(260, t0 + dur);
+  lowpass.Q.value = 7;
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, t0);
+  env.gain.exponentialRampToValueAtTime(0.6, t0 + 0.04);
+  env.gain.setValueAtTime(0.6, t0 + dur * 0.55);
+  env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+  tone.connect(lowpass).connect(amp).connect(env).connect(ctx.destination);
+  for (const node of [tone, wobble, flutter, noise]) {
+    node.start(t0);
+    node.stop(t0 + dur + 0.05);
+  }
+}
+
 export function startTimer({ recipeId, recipeTitle, stepNumber, label, minSeconds, maxSeconds }) {
   unlockAudio();
   const existing = timers.find(
@@ -141,6 +200,13 @@ function tick() {
       t.alerted = true;
       t.alarmUntil = now + ALARM_MS;
       changed = true;
+    }
+  }
+  for (const t of timers) {
+    if (t.alarmUntil && !t.rangOut && now >= t.alarmUntil) {
+      t.rangOut = true;
+      changed = true;
+      if (now - t.alarmUntil < 5000) outro();
     }
   }
   if (changed) save();
