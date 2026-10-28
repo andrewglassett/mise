@@ -73,7 +73,7 @@ export function artHTML(recipe, { variant = 'card', size = 320 } = {}) {
   const image = typeof recipe.image === 'string' ? { src: recipe.image } : recipe.image;
   const width = Math.round(size * 2);
   const photo = image?.src
-    ? `<img src="${escapeHTML(imageSrc(image.src, width))}" alt="${escapeHTML(image.alt || '')}" loading="lazy" decoding="async" onerror="this.remove()">`
+    ? `<img src="${escapeHTML(imageSrc(image.src, width))}" alt="${escapeHTML(image.alt || '')}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">`
     : '';
   return `<span class="art art-${variant}">${placeholderHTML(recipe)}${photo}</span>`;
 }
