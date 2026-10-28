@@ -134,7 +134,7 @@ export function outro(ctx = audio) {
 
 export function startTimer({ recipeId, recipeTitle, stepNumber, label, minSeconds, maxSeconds }) {
   unlockAudio();
-  const existing = timers.find(
+  const existing = recipeId && timers.find(
     (t) => t.recipeId === recipeId && t.stepNumber === stepNumber && t.label === label,
   );
   if (existing) return existing;
@@ -155,6 +155,18 @@ export function startTimer({ recipeId, recipeTitle, stepNumber, label, minSecond
   render();
   ensureTicking();
   return t;
+}
+
+// A kitchen timer that isn't tied to a recipe step. Each tap starts another one.
+export function startQuickTimer(seconds = 300) {
+  const n = timers.filter((t) => !t.recipeId).length;
+  return startTimer({
+    recipeId: null,
+    recipeTitle: '',
+    stepNumber: null,
+    label: n ? `Timer ${n + 1}` : 'Timer',
+    minSeconds: seconds,
+  });
 }
 
 export function isRunning(recipeId, stepNumber, label) {
@@ -269,20 +281,21 @@ function render() {
     const paused = t.pausedRemaining != null;
     const done = r <= 0;
     const extra = t.maxSeconds - t.minSeconds;
-    let sub = `Step ${t.stepNumber} · ${escapeHTML(t.recipeTitle)}`;
+    const where = t.recipeId ? `Step ${t.stepNumber}` : '';
+    let sub = t.recipeId ? `${where} · ${escapeHTML(t.recipeTitle)}` : 'Tap +1 to add a minute';
     let clock = fmtClock(r);
     if (done) {
       const over = -r;
       clock = `+${fmtClock(over)}`;
       sub = extra > 0 && over < extra
         ? `Check it · up to ${fmtClock(extra - over)} more`
-        : `Done · Step ${t.stepNumber}`;
+        : where ? `Done · ${where}` : 'Done';
     } else if (paused) {
-      sub = `Paused · ${sub}`;
+      sub = t.recipeId ? `Paused · ${sub}` : 'Paused';
     }
     return `
       <div class="timer ${done ? 'is-done' : ''} ${paused ? 'is-paused' : ''} ${isRinging(t, now) ? 'is-ringing' : ''}">
-        <button class="timer-main" data-timer-open="${t.id}" aria-label="Go to step ${t.stepNumber}">
+        <button class="timer-main" data-timer-open="${t.id}" aria-label="${t.recipeId ? `Go to step ${t.stepNumber}` : escapeHTML(t.label)}">
           <span class="timer-clock">${clock}</span>
           <span class="timer-label">${escapeHTML(t.label)}</span>
           <span class="timer-sub">${sub}</span>
@@ -323,7 +336,7 @@ export function mountTimers(el, open) {
       const t = timers.find((x) => x.id === o.dataset.timerOpen);
       if (t) {
         if (isRinging(t)) silence(t.id);
-        onOpen?.(t);
+        if (t.recipeId) onOpen?.(t);
       }
     }
   });

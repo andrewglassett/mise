@@ -30,7 +30,7 @@ Only a few fields are required. The rest make cook mode better: timers, preheat 
 | `tags` | no | Free-form labels, like `vegan`, `sourdough` or `weeknight`. Each one becomes a filter chip. |
 | `source` | no | Author, website or "Grandma's card". |
 | `yield` | no | Free text: "Serves 4", "Makes 12". |
-| `times` | no | Keys like `prep`, `cook`, `bake`, `proof`, `rest`, `total`. Each is `{ "text": "1 hr 20 min", "minutes": 80 }`. The time filter uses `total`, or adds up the others when there's no `total`. |
+| `times` | no | Keys like `prep`, `cook`, `bake`, `proof`, `rest`, `total`. Each is `{ "text": "1 hr 20 min", "minutes": 80 }`. Always include `total` when you include any times; see [Times](#times). |
 | `equipment` | no | List of strings. |
 | `ingredientGroups` | yes | See below. Use `[]` if there are none. |
 | `stepGroups` | yes | See below. Use `[]` for a recipe with no steps. |
@@ -39,6 +39,25 @@ Only a few fields are required. The rest make cook mode better: timers, preheat 
 | `cookMode` | no | `"steps"` or `"list"`. Leave it out and the app decides: recipes with 3 or fewer steps and under 450 characters of instructions show the method as a list on the ingredients screen; longer ones get step-by-step cook mode. Set it only to override that choice. |
 | `methodSource` | no | Set to `"suggested"` when the method isn't from the original recipe. The app shows an "Untested method" badge. |
 | `nutrition` | no | Free text. |
+
+## Times
+
+`total` is the time from starting the recipe to eating it, including waits like rising, chilling and overnight rests. The app shows it on every list, and the time filters use it.
+
+- Give `total` a `minutes` number even when the recipe is vague. Estimate: overnight is 12 hours (720), and a range like "8–12 hours" counts as its longer end. When the recipe says a longer wait is optional ("overnight, or 72 hours is better"), use the shorter one.
+- Count waits that are part of the recipe (rising, marinating, chilling before serving), but not storage time.
+- Keep the recipe's own wording in `text`, like `"About 24 hrs (mostly overnight)"`.
+- The other times (`prep`, `bake`, `proof`…) are optional detail. `minutes` can be `null` when a part has no clear number, like `"text": "overnight"`.
+
+Without a `total`, the app adds up the other times only when every one has `minutes`. Otherwise the list shows just the longest known part, such as "Bake 30 min", and the time filters skip the recipe.
+
+```json
+"times": {
+  "proof": { "text": "8–12 hrs + overnight", "minutes": null },
+  "bake": { "text": "30 min", "minutes": 30 },
+  "total": { "text": "About 28 hrs (mostly resting)", "minutes": 1680 }
+}
+```
 
 ## Ingredients
 

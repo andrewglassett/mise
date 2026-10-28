@@ -84,14 +84,27 @@ export function fmtClock(totalSeconds) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
+/**
+ * The recipe's total time in minutes, or null when it isn't known. Without a
+ * `total`, the other times are added up only if every one of them has a number:
+ * "Proof: overnight" plus "Bake: 30 min" is not a 30-minute recipe.
+ */
 export function totalMinutes(recipe) {
   const t = recipe.times || {};
   if (t.total?.minutes) return t.total.minutes;
-  let sum = 0;
-  for (const [k, v] of Object.entries(t)) {
-    if (k !== 'total' && k !== 'active' && v?.minutes) sum += v.minutes;
-  }
-  return sum || null;
+  const parts = Object.entries(t).filter(([k, v]) => k !== 'total' && k !== 'active' && v);
+  if (!parts.length || parts.some(([, v]) => !v.minutes)) return null;
+  return parts.reduce((sum, [, v]) => sum + v.minutes, 0);
+}
+
+/** "1 hr 20 min" when the total is known, else the longest known part, like "Bake 30 min". */
+export function timeSummary(recipe) {
+  const total = totalMinutes(recipe);
+  if (total) return fmtMinutes(total);
+  const parts = Object.entries(recipe.times || {}).filter(([k, v]) => k !== 'total' && v?.minutes);
+  if (!parts.length) return '';
+  const [key, v] = parts.reduce((a, b) => (b[1].minutes > a[1].minutes ? b : a));
+  return `${timeLabel(key)} ${fmtMinutes(v.minutes)}`;
 }
 
 const TIME_LABELS = {

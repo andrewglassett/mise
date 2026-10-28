@@ -1,8 +1,8 @@
 import { createStore } from './data.js';
 import {
-  escapeHTML as esc, fmtQty, unitLabel, scaleMeasure, fmtMinutes, totalMinutes, timeLabel,
+  escapeHTML as esc, fmtQty, unitLabel, scaleMeasure, totalMinutes, timeSummary, timeLabel,
 } from './format.js';
-import { mountTimers, startTimer, isRunning } from './timers.js';
+import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 
 const app = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -260,9 +260,9 @@ function favMark(r) {
 
 // Cards are for the short rows on the home screen.
 function card(r, { showCategory = true } = {}) {
-  const mins = totalMinutes(r);
+  const time = timeSummary(r);
   const meta = [
-    mins ? `${icon('clock', 16)} ${fmtMinutes(mins)}` : '',
+    time ? `${icon('clock', 16)} ${time}` : '',
     r.yield ? esc(r.yield) : '',
   ].filter(Boolean).join('<span class="dot">·</span>');
   const badges = badgesHTML(r);
@@ -277,7 +277,7 @@ function card(r, { showCategory = true } = {}) {
 
 // Compact rows are for full lists, so hundreds of recipes stay scannable.
 function row(r, { showCategory = false } = {}) {
-  const mins = totalMinutes(r);
+  const time = timeSummary(r);
   const sub = [showCategory ? esc(r.category) : '', r.yield ? esc(r.yield) : '']
     .filter(Boolean).join('<span class="dot">·</span>');
   const badges = badgesHTML(r);
@@ -287,7 +287,7 @@ function row(r, { showCategory = false } = {}) {
         <span class="row-title">${favMark(r)}${esc(r.title)}</span>
         ${sub || badges ? `<span class="row-sub">${sub}${badges ? `<span class="row-badges">${badges}</span>` : ''}</span>` : ''}
       </span>
-      <span class="row-time">${mins ? fmtMinutes(mins) : ''}</span>
+      <span class="row-time">${time}</span>
       ${icon('next', 18)}
     </a>`;
 }
@@ -321,6 +321,7 @@ function renderLibrary() {
         <div class="brand">
           <h1>Mise</h1>
           <div class="brand-tools">
+            <button class="tool" data-action="quick-timer" title="Start a 5-minute timer" aria-label="Start a 5-minute timer">${icon('timer', 20)}</button>
             <button class="tool" data-action="toggle-dark" aria-pressed="${isDark()}" ${theme.retro ? 'disabled' : ''} title="Dark mode" aria-label="Dark mode">${icon(isDark() ? 'sun' : 'moon', 20)}</button>
             <button class="tool tool-retro" data-action="toggle-retro" aria-pressed="${theme.retro}" title="90s mode" aria-label="90s mode">95</button>
           </div>
@@ -768,6 +769,9 @@ app.addEventListener('click', (e) => {
       Object.assign(ui, { q: '', category: 'All', tags: [], maxTime: 0 });
       saveUI();
       renderLibrary();
+      break;
+    case 'quick-timer':
+      startQuickTimer(5 * 60);
       break;
     case 'toggle-dark':
       theme.mode = isDark() ? 'light' : 'dark';

@@ -442,7 +442,7 @@ body[data-view="overview"] .timers { bottom: calc(var(--bottom) + 100px); }
   background: var(--accent); opacity: 0;
 }
 body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite; }
-@keyframes alarm-flash { 0%, 100% { opacity: 0; } 50% { opacity: 0.22; } }
+@keyframes alarm-flash { 0%, 100% { opacity: 0; } 50% { opacity: 0.75; } }
 
 /* ---------- tablet & landscape ---------- */
 
@@ -482,7 +482,7 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 
 /* With reduced motion, a steady tint instead of a pulse. */
 @media (prefers-reduced-motion: reduce) {
-  body.is-alarming .alarm-flash { opacity: 0.15; }
+  body.is-alarming .alarm-flash { opacity: 0.4; }
 }
 
 /* ---------- 90s mode: Windows 95 era ---------- */
