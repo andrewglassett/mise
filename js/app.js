@@ -16,7 +16,6 @@ const ui = loadUI();
 let book = null;
 let syncInfo = null;
 let currentView = null;
-let accountOpen = false;
 
 const account = createAccount({
   seed: () => ({ favorites: ui.favorites, recent: ui.recent }),
@@ -125,39 +124,21 @@ const THEMES = [
   ['95', 'Mise 95', () => '<span class="theme-95">95</span>'],
 ];
 
-// One button that shows the current theme and opens a short menu.
-function themeMenuHTML() {
+// The theme switch in the settings under the filters.
+function themeSwitchHTML() {
   const now = currentTheme();
-  const [, label, glyph] = THEMES.find(([id]) => id === now);
   return `
-    <div class="theme-wrap">
-      <button class="tool" data-action="theme-menu" aria-haspopup="menu" aria-expanded="false" title="Theme" aria-label="Theme: ${label}">${glyph()}</button>
-      <div class="theme-menu" role="menu" hidden>
-        ${THEMES.map(([id, name, g]) => `
-          <button class="theme-item" role="menuitemradio" aria-checked="${id === now}" data-action="set-theme" data-theme="${id}">
-            ${g()}<span>${name}</span>${id === now ? icon('check', 18) : ''}
-          </button>`).join('')}
-      </div>
+    <div class="seg theme-seg" role="radiogroup" aria-label="Theme">
+      ${THEMES.map(([id, name, g]) => `
+        <button role="radio" aria-checked="${id === now}" class="${id === now ? 'is-on' : ''}" data-action="set-theme" data-theme="${id}" title="${name}">
+          ${g()}<span>${id === '95' ? '' : name}</span>
+        </button>`).join('')}
     </div>`;
 }
 
-function setThemeMenu(open) {
-  const menu = document.querySelector('.theme-menu');
-  if (!menu) return;
-  menu.hidden = !open;
-  document.querySelector('[data-action="theme-menu"]').setAttribute('aria-expanded', open);
-}
-
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.theme-wrap')) setThemeMenu(false);
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') setThemeMenu(false);
-});
-
 systemDark.addEventListener('change', () => {
-  if (!theme.mode && document.body.dataset.view === 'library') renderLibrary();
+  const seg = document.querySelector('.theme-seg');
+  if (!theme.mode && seg) seg.outerHTML = themeSwitchHTML();
 });
 
 function findRecipe(id) {
@@ -407,11 +388,9 @@ function renderLibrary() {
           <h1><button class="brand-home" data-action="home" title="Show all recipes">Mise</button></h1>
           <div class="brand-tools">
             <button class="tool" data-action="quick-timer" title="Start a 5-minute timer" aria-label="Start a 5-minute timer">${icon('timer', 20)}</button>
-            ${themeMenuHTML()}
-            <span id="account-tool">${accountToolHTML()}</span>
+            <span id="add-tool">${addToolHTML()}</span>
           </div>
         </div>
-        <div id="account-panel" class="account-panel" ${accountOpen ? '' : 'hidden'}>${accountPanelHTML()}</div>
         <button class="sync" data-action="refresh" title="Check for new recipes">${icon('refresh', 15)}<span id="sync-text">${syncText()}</span></button>
         <label class="search">
           ${icon('search')}
@@ -429,6 +408,13 @@ function renderLibrary() {
           <span class="chip-sep"></span>
           ${times.map(([v, l]) => `<button class="chip ${ui.maxTime === v ? 'is-on' : ''}" data-action="time" data-time="${v}">${l}</button>`).join('')}
         </div>
+        <section class="settings" aria-label="Settings">
+          <div class="setting">
+            <h2 class="setting-label">Theme</h2>
+            ${themeSwitchHTML()}
+          </div>
+          <div id="account-box" class="setting">${accountBoxHTML()}</div>
+        </section>
       </aside>
       <main class="results" id="results"></main>
     </div>`;
@@ -437,15 +423,10 @@ function renderLibrary() {
 
 // ---------- account ----------
 
-function accountToolHTML() {
-  const s = account.status;
-  if (!s.enabled) return '';
-  if (!s.signedIn) {
-    return `<button class="tool" data-action="sign-in" title="Sign in to sync favorites" aria-label="Sign in with Google">${icon('user', 20)}</button>`;
-  }
-  const initial = esc(s.email.trim()[0]?.toUpperCase() || '?');
-  const add = addEnabled ? `<a class="tool" href="#/add" title="Add a recipe" aria-label="Add a recipe">${icon('plus', 20)}</a>` : '';
-  return `${add}<button class="tool tool-account ${s.needsReconnect ? 'needs-attention' : ''}" data-action="account" aria-expanded="${accountOpen}" title="${esc(s.email)}" aria-label="Account: ${esc(s.email)}">${initial}</button>`;
+// The + in the header, for adding a recipe once signed in.
+function addToolHTML() {
+  if (!addEnabled || !account.status.signedIn) return '';
+  return `<a class="tool" href="#/add" title="Add a recipe" aria-label="Add a recipe">${icon('plus', 20)}</a>`;
 }
 
 function accountStatusText(s) {
@@ -460,12 +441,28 @@ function accountStatusText(s) {
   return 'Favorites and recents sync across devices';
 }
 
-function accountPanelHTML() {
+function accountBoxHTML() {
   const s = account.status;
-  if (!s.signedIn) return '';
+  if (!s.enabled) return '';
+  if (!s.signedIn) {
+    return `
+      <h2 class="setting-label">Account</h2>
+      <p class="account-status">Sign in to keep favorites and recents the same on every device.</p>
+      <div class="account-actions">
+        <button class="btn" data-action="sign-in">${icon('user', 18)}Sign in with Google</button>
+      </div>
+      <a class="account-privacy" href="privacy.html">Privacy</a>`;
+  }
+  const initial = esc(s.email.trim()[0]?.toUpperCase() || '?');
   return `
-    <p class="account-email">${esc(s.email)}</p>
-    <p class="account-status">${esc(accountStatusText(s))}</p>
+    <h2 class="setting-label">Account</h2>
+    <div class="account-who">
+      <span class="account-avatar ${s.needsReconnect ? 'needs-attention' : ''}" aria-hidden="true">${initial}</span>
+      <div>
+        <p class="account-email" title="${esc(s.email)}">${esc(s.email)}</p>
+        <p class="account-status">${esc(accountStatusText(s))}</p>
+      </div>
+    </div>
     <div class="account-actions">
       ${s.needsReconnect
         ? '<button class="btn" data-action="sign-in">Sign in again</button>'
@@ -476,13 +473,10 @@ function accountPanelHTML() {
 }
 
 function updateAccountUI() {
-  const tool = document.getElementById('account-tool');
-  const panel = document.getElementById('account-panel');
-  if (tool) tool.innerHTML = accountToolHTML();
-  if (panel) {
-    panel.innerHTML = accountPanelHTML();
-    panel.hidden = !accountOpen || !account.status.signedIn;
-  }
+  const add = document.getElementById('add-tool');
+  const box = document.getElementById('account-box');
+  if (add) add.innerHTML = addToolHTML();
+  if (box) box.innerHTML = accountBoxHTML();
 }
 
 // Only visible in 90s mode.
@@ -1137,9 +1131,6 @@ app.addEventListener('click', (e) => {
       renderLibrary();
       window.scrollTo(0, 0);
       break;
-    case 'theme-menu':
-      setThemeMenu(document.querySelector('.theme-menu').hidden);
-      break;
     case 'set-theme': {
       const next = el.dataset.theme;
       const wasRetro = theme.retro;
@@ -1150,7 +1141,8 @@ app.addEventListener('click', (e) => {
         theme.mode = next;
       }
       applyTheme();
-      renderLibrary();
+      // Just the switch: redrawing the library would lose the scroll position.
+      document.querySelector('.theme-seg').outerHTML = themeSwitchHTML();
       if (theme.retro && !wasRetro) toast('Welcome to Mise 95');
       break;
     }
@@ -1160,16 +1152,11 @@ app.addEventListener('click', (e) => {
     case 'sign-in':
       account.signIn();
       break;
-    case 'account':
-      accountOpen = !accountOpen;
-      updateAccountUI();
-      break;
     case 'sync-now':
       account.sync();
       break;
     case 'sign-out':
       account.signOut();
-      accountOpen = false;
       updateAccountUI();
       toast('Signed out · favorites stay on this device');
       break;

@@ -85,7 +85,7 @@ The key is visible to anyone who opens your site. That's expected for a browser 
 
 ## Syncing favorites between devices (optional)
 
-With a Google OAuth client ID in `config.js`, a sign-in button appears next to the theme buttons. Signed in, your favorites and recently opened recipes follow you between devices. They're saved in your Google Drive's hidden app-data folder, which only Mise can see. Signed out, everything stays on the device as before.
+With a Google OAuth client ID in `config.js`, an Account section with a sign-in button appears under the filters. Signed in, your favorites and recently opened recipes follow you between devices. They're saved in your Google Drive's hidden app-data folder, which only Mise can see. Signed out, everything stays on the device as before.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/) (the same project as the API key), go to **Google Auth Platform → Branding** (or **OAuth consent screen**), choose **External**, and fill in the app name and your email. Under **Audience**, add your Google account as a test user.
 2. Go to **Clients → Create client**, choose **Web application**, and add:
@@ -99,7 +99,7 @@ While the app is in "Testing", only the test users you list can sign in.
 
 ## Adding recipes from the app (optional)
 
-With this set up, a **+** button appears next to your account button. Paste a link to a recipe, or paste the recipe itself, and Mise converts it with Claude, shows you a preview, and saves it to `recipes.json` in your Drive when you tap Save. Only your Google account can add recipes.
+With this set up, a **+** button appears next to the Mise logotype once you're signed in. Paste a link to a recipe, or paste the recipe itself, and Mise converts it with Claude, shows you a preview, and saves it to `recipes.json` in your Drive when you tap Save. Only your Google account can add recipes.
 
 It needs a small server, because the Claude key and the key that can write to your Drive can't sit in a web page. The server is a Cloudflare Worker in [`worker/`](worker/). Cloudflare's free plan is plenty. Each recipe costs a few cents of Claude usage.
 
@@ -140,4 +140,4 @@ Then open http://localhost:8765. With `recipesUrl` set and no Drive key, it read
 - **Add recipes:** paste a link or a recipe, check the preview, and save it to your recipe file (optional; needs the Worker).
 - **Sync:** sign in with Google to keep favorites and recent recipes the same on every device (optional).
 - **Works offline:** after the first visit, the app opens with your last-loaded recipes even without a connection.
-- **Themes:** the theme button picks light, dark or "Mise 95", a 1990s Windows look. Tap the Mise logotype to clear every filter and go back to the home shelves.
+- **Themes:** the Theme switch under the filters picks light, dark or "Mise 95", a 1990s Windows look. Tap the Mise logotype to clear every filter and go back to the home shelves.
