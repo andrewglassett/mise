@@ -4,6 +4,7 @@ import {
 } from './format.js';
 import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
+import { createAccount } from './account.js';
 
 const app = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -12,6 +13,21 @@ const ui = loadUI();
 let book = null;
 let syncInfo = null;
 let currentView = null;
+let accountOpen = false;
+
+const account = createAccount({
+  seed: () => ({ favorites: ui.favorites, recent: ui.recent }),
+  onChange: ({ favorites, recent }) => {
+    ui.favorites = favorites;
+    ui.recent = recent.slice(0, RECENT_MAX);
+    saveUI();
+    if (!book) return;
+    if (document.body.dataset.view === 'library') refreshHome();
+    else rerender();
+  },
+  onStatus: () => updateAccountUI(),
+  canRedirect: () => document.body.dataset.view === 'library',
+});
 
 // ---------- small helpers ----------
 
@@ -50,6 +66,7 @@ function icon(name, size = 22) {
     star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z"/>',
     moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+    user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   }[name];
   return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
@@ -346,8 +363,10 @@ function renderLibrary() {
             <button class="tool" data-action="quick-timer" title="Start a 5-minute timer" aria-label="Start a 5-minute timer">${icon('timer', 20)}</button>
             <button class="tool" data-action="toggle-dark" aria-pressed="${isDark()}" ${theme.retro ? 'disabled' : ''} title="Dark mode" aria-label="Dark mode">${icon(isDark() ? 'sun' : 'moon', 20)}</button>
             <button class="tool tool-retro" data-action="toggle-retro" aria-pressed="${theme.retro}" title="90s mode" aria-label="90s mode">95</button>
+            <span id="account-tool">${accountToolHTML()}</span>
           </div>
         </div>
+        <div id="account-panel" class="account-panel" ${accountOpen ? '' : 'hidden'}>${accountPanelHTML()}</div>
         <button class="sync" data-action="refresh" title="Check for new recipes">${icon('refresh', 15)}<span id="sync-text">${syncText()}</span></button>
         <label class="search">
           ${icon('search')}
@@ -369,6 +388,54 @@ function renderLibrary() {
       <main class="results" id="results"></main>
     </div>`;
   renderResults();
+}
+
+// ---------- account ----------
+
+function accountToolHTML() {
+  const s = account.status;
+  if (!s.enabled) return '';
+  if (!s.signedIn) {
+    return `<button class="tool" data-action="sign-in" title="Sign in to sync favorites" aria-label="Sign in with Google">${icon('user', 20)}</button>`;
+  }
+  const initial = esc(s.email.trim()[0]?.toUpperCase() || '?');
+  return `<button class="tool tool-account ${s.needsReconnect ? 'needs-attention' : ''}" data-action="account" aria-expanded="${accountOpen}" title="${esc(s.email)}" aria-label="Account: ${esc(s.email)}">${initial}</button>`;
+}
+
+function accountStatusText(s) {
+  if (s.missingScope) return 'Mise needs access to its Drive app data to sync. Sign in again and allow it.';
+  if (s.needsReconnect) return 'Sign in again to keep syncing';
+  if (s.state === 'syncing') return 'Syncing…';
+  if (s.state === 'offline') return 'Offline · will sync when back online';
+  if (s.state === 'error') return 'Couldn’t sync · will try again';
+  if (s.syncedAt) {
+    return `Favorites and recents synced ${new Date(s.syncedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+  return 'Favorites and recents sync across devices';
+}
+
+function accountPanelHTML() {
+  const s = account.status;
+  if (!s.signedIn) return '';
+  return `
+    <p class="account-email">${esc(s.email)}</p>
+    <p class="account-status">${esc(accountStatusText(s))}</p>
+    <div class="account-actions">
+      ${s.needsReconnect
+        ? '<button class="btn" data-action="sign-in">Sign in again</button>'
+        : '<button class="btn" data-action="sync-now">Sync now</button>'}
+      <button class="btn btn-quiet" data-action="sign-out">Sign out</button>
+    </div>`;
+}
+
+function updateAccountUI() {
+  const tool = document.getElementById('account-tool');
+  const panel = document.getElementById('account-panel');
+  if (tool) tool.innerHTML = accountToolHTML();
+  if (panel) {
+    panel.innerHTML = accountPanelHTML();
+    panel.hidden = !accountOpen || !account.status.signedIn;
+  }
 }
 
 // Only visible in 90s mode.
@@ -492,6 +559,7 @@ function renderOverview(recipe) {
   if (ui.recent[0] !== recipe.id) {
     ui.recent = [recipe.id, ...ui.recent.filter((id) => id !== recipe.id)].slice(0, RECENT_MAX);
     saveUI();
+    account.noteOpened(recipe.id);
   }
   const fav = isFavorite(recipe.id);
   const steps = allSteps(recipe);
@@ -783,8 +851,10 @@ app.addEventListener('click', (e) => {
       break;
     case 'favorite': {
       const id = el.dataset.id || recipe.id;
-      ui.favorites = isFavorite(id) ? ui.favorites.filter((x) => x !== id) : [...ui.favorites, id];
+      const on = !isFavorite(id);
+      ui.favorites = on ? [...ui.favorites, id] : ui.favorites.filter((x) => x !== id);
       saveUI();
+      account.noteFavorite(id, on);
       if (el.dataset.id) refreshHome();
       else rerender();
       break;
@@ -828,6 +898,22 @@ app.addEventListener('click', (e) => {
       break;
     case 'refresh':
       store.refresh().then(() => toast('Recipes are up to date'));
+      break;
+    case 'sign-in':
+      account.signIn();
+      break;
+    case 'account':
+      accountOpen = !accountOpen;
+      updateAccountUI();
+      break;
+    case 'sync-now':
+      account.sync();
+      break;
+    case 'sign-out':
+      account.signOut();
+      accountOpen = false;
+      updateAccountUI();
+      toast('Signed out · favorites stay on this device');
       break;
     case 'scale':
       ui.scale[recipe.id] = Number(el.dataset.scale);
@@ -913,8 +999,12 @@ const store = createStore((nextBook, info) => {
   if (info.updated) toast('Recipes updated');
 });
 
-render();
-store.start();
+// When the account needs a fresh sign-in, the page goes to Google and comes
+// straight back, so skip drawing it in between.
+if (!account.start()) {
+  render();
+  store.start();
+}
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

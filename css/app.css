@@ -151,6 +151,22 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
 }
 .tool:disabled { opacity: 0.4; cursor: default; }
 .tool-retro[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+#account-tool { display: contents; }
+.tool-account { background: var(--accent-soft); color: var(--accent); font-size: 1rem; position: relative; }
+.tool-account.needs-attention::after {
+  content: ""; position: absolute; top: 2px; right: 2px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
+}
+.account-panel {
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; margin-top: -4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+}
+.account-panel p { margin: 0; }
+.account-email { font-weight: 600; overflow-wrap: anywhere; }
+.account-status { font-size: 0.85rem; color: var(--muted); }
+.account-actions { display: flex; gap: 8px; margin-top: 8px; }
+.account-actions .btn { min-height: 40px; padding: 0 16px; font-size: 0.9rem; }
+.btn-quiet { background: none; border: 1px solid var(--line); }
 .sync { align-self: flex-start; margin-top: -6px; }
 .retro-only { display: none; }
 .brand h1 { font: 600 2.4rem/1 var(--serif); letter-spacing: -0.01em; }
@@ -656,6 +672,10 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 }
 [data-retro] .tool { width: 44px; height: 36px; font-family: var(--sans); }
 [data-retro] .sync { color: #000; }
+[data-retro] .tool-account { color: #000; }
+[data-retro] .account-panel { background: #c0c0c0; border: 0; box-shadow: var(--sunken); color: #000; }
+[data-retro] .account-status { color: #000; }
+[data-retro] .btn-quiet { box-shadow: var(--raised); }
 [data-retro] .results { background: var(--desktop); }
 [data-retro] .cat-section h2,
 [data-retro] .shelf-head h2,

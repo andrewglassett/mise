@@ -14,6 +14,11 @@ export const CONFIG = {
   // Used when driveApiKey is empty. A path in this repo or a full URL.
   recipesUrl: 'data/recipes.json',
 
+  // Optional: a Google OAuth client ID turns on "Sign in with Google", which
+  // keeps favorites and recent recipes in step across devices. Leave it empty
+  // to hide sign-in. See README.md.
+  googleClientId: '562155838307-71nbi31vf5m5vqcvo9qibmb7kdrt05km.apps.googleusercontent.com',
+
   // How often to check for newer recipes while the app is open.
   pollMinutes: 5,
 

@@ -83,6 +83,20 @@ Always update the file in place: upload a new version or edit it, rather than de
 
 The key is visible to anyone who opens your site. That's expected for a browser key, and the two restrictions are what protect it: it only works from your site, and only for reading publicly shared Drive files. GitHub may email you a "secret detected" alert for it; you can close the alert as *Won't fix*.
 
+## Syncing favorites between devices (optional)
+
+With a Google OAuth client ID in `config.js`, a sign-in button appears next to the theme buttons. Signed in, your favorites and recently opened recipes follow you between devices. They're saved in your Google Drive's hidden app-data folder, which only Mise can see. Signed out, everything stays on the device as before.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/) (the same project as the API key), go to **Google Auth Platform → Branding** (or **OAuth consent screen**), choose **External**, and fill in the app name and your email. Under **Audience**, add your Google account as a test user.
+2. Go to **Clients → Create client**, choose **Web application**, and add:
+   - *Authorized JavaScript origins*: `https://<you>.github.io`
+   - *Authorized redirect URIs*: `https://<you>.github.io/mise/`, exactly, with the trailing slash
+3. Put the client ID in `googleClientId` in [`config.js`](config.js).
+
+To use it on your computer as well, add `http://localhost:8765` as an origin and `http://localhost:8765/` as a redirect URI.
+
+While the app is in "Testing", only the test users you list can sign in.
+
 ## Running it on your computer
 
 ```bash
@@ -99,5 +113,6 @@ Then open http://localhost:8765. With `recipesUrl` set and no Drive key, it read
 - **Cook mode:** one step per screen with the phase name and progress bar. Swipe, tap Back/Next, or use the arrow keys. Each step lists the ingredients it uses.
 - **Timers:** tap a time in the step text to start one. Timers keep running across steps and reloads, chime when done, and show how much of a range ("12–18 minutes") is left. Tap −1 or +1 to change a running timer by a minute; +1 on a finished timer starts it again with a minute. The timer button at the top of the library starts a 5-minute timer that isn't tied to a recipe.
 - **Pictures:** add a photo to any recipe with `image` (a Google Drive file or a URL). Recipes without one get a drawn placeholder in their category's colour.
+- **Sync:** sign in with Google to keep favorites and recent recipes the same on every device (optional).
 - **Works offline:** after the first visit, the app opens with your last-loaded recipes even without a connection.
 - **Themes:** dark mode, and a "95" toggle for a 1990s Windows look.
