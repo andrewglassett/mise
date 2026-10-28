@@ -556,6 +556,57 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 
 /* ---------- tablet & landscape ---------- */
 
+/* ---------- add a recipe ---------- */
+
+.add-body {
+  display: grid; gap: 16px; align-content: start;
+  max-width: 900px; margin: 16px auto calc(var(--bottom) + 40px);
+  width: calc(100% - var(--gutter) - var(--gutter-r));
+}
+.add-body > p { margin: 0; }
+.add-body .facts { margin: 0; }
+.add-body h3 { margin-top: 0; }
+.add-body .ing-heading { margin: 12px 0 4px; }
+.add-mode { justify-self: start; }
+.add-mode button { padding: 0 16px; }
+.field { display: grid; gap: 6px; }
+.field > span { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.field input, .field select, .field textarea {
+  width: 100%; min-height: 48px; padding: 10px 14px; font: inherit; font-size: 1rem;
+  color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+}
+.field textarea { resize: vertical; line-height: 1.45; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.add-fields { display: grid; gap: 12px; }
+.add-columns { display: grid; gap: 20px; }
+.add-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.add-actions .btn:disabled { opacity: 0.6; }
+.add-body .banner { margin: 0; }
+.add-body .banner .bullets { margin-top: 6px; }
+.add-working { display: grid; justify-items: center; gap: 4px; padding: 40px 0; text-align: center; }
+.add-working p { margin: 0; }
+.add-working { gap: 10px; }
+.add-pct {
+  font: 600 3.4rem/1 var(--serif); font-variant-numeric: tabular-nums; color: var(--accent);
+}
+.add-pct span { display: inline-block; min-width: 2ch; text-align: right; }
+.add-bar {
+  width: min(320px, 80%); height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--surface-2);
+}
+.add-bar span {
+  display: block; height: 100%; width: 0; border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #fff), var(--accent));
+  background-size: 200% 100%; animation: shimmer 1.6s linear infinite;
+  transition: width 0.12s linear;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+@media (min-width: 700px) {
+  .add-fields { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .add-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 28px; }
+}
+
 @media (min-width: 700px) {
   .timers { left: auto; width: 420px; }
   .overview-body {
@@ -786,4 +837,20 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 [data-retro] .retro-footer p { margin: 6px 0; display: flex; justify-content: center; align-items: center; gap: 6px; }
 [data-retro] .retro-footer .counter {
   font-family: "Courier New", monospace; background: #000; color: #0f0; padding: 1px 6px; letter-spacing: 2px; text-shadow: none;
+}
+
+/* Add a recipe */
+[data-retro] .field input,
+[data-retro] .field select,
+[data-retro] .field textarea { background: #fff; color: #000; border: 0; box-shadow: var(--sunken); }
+[data-retro] .field input:focus,
+[data-retro] .field select:focus,
+[data-retro] .field textarea:focus { outline: 1px dotted #000; outline-offset: -4px; }
+[data-retro] .field > span { color: #000; }
+[data-retro] .add-pct { font: 700 2.4rem var(--sans); color: #000; }
+/* A Windows 95 copy dialog: chunky navy blocks in a sunken box. */
+[data-retro] .add-bar { height: 22px; padding: 3px; background: #fff; box-shadow: var(--sunken); }
+[data-retro] .add-bar span {
+  animation: none; transition: none;
+  background: repeating-linear-gradient(90deg, #000080 0 10px, transparent 10px 12px);
 }

@@ -5,6 +5,9 @@ import {
 import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 import { createAccount } from './account.js';
+import {
+  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe,
+} from './add.js';
 
 const app = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -66,6 +69,7 @@ function icon(name, size = 22) {
     star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z"/>',
     moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
     user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   }[name];
   return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -440,7 +444,8 @@ function accountToolHTML() {
     return `<button class="tool" data-action="sign-in" title="Sign in to sync favorites" aria-label="Sign in with Google">${icon('user', 20)}</button>`;
   }
   const initial = esc(s.email.trim()[0]?.toUpperCase() || '?');
-  return `<button class="tool tool-account ${s.needsReconnect ? 'needs-attention' : ''}" data-action="account" aria-expanded="${accountOpen}" title="${esc(s.email)}" aria-label="Account: ${esc(s.email)}">${initial}</button>`;
+  const add = addEnabled ? `<a class="tool" href="#/add" title="Add a recipe" aria-label="Add a recipe">${icon('plus', 20)}</a>` : '';
+  return `${add}<button class="tool tool-account ${s.needsReconnect ? 'needs-attention' : ''}" data-action="account" aria-expanded="${accountOpen}" title="${esc(s.email)}" aria-label="Account: ${esc(s.email)}">${initial}</button>`;
 }
 
 function accountStatusText(s) {
@@ -787,6 +792,183 @@ function bindSwipe(el, prevHref, nextHref) {
   }, { passive: true });
 }
 
+// ---------- add a recipe ----------
+
+function addPreviewHTML(r) {
+  const cats = book.categories || [...new Set(book.recipes.map((x) => x.category))];
+  const steps = allSteps(r);
+  const total = r.times?.total?.text;
+  return `
+    ${draft.warnings.length ? `<div class="banner banner-warn"><strong>Check before saving</strong><ul class="bullets">${draft.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+    <div class="add-fields">
+      <label class="field"><span>Title</span><input id="add-title" value="${esc(r.title)}" autocomplete="off"></label>
+      <label class="field"><span>Category</span>
+        <select id="add-category">${cats.map((c) => `<option ${c === r.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      </label>
+    </div>
+    <dl class="facts">
+      ${r.yield ? `<div><dt>Yield</dt><dd>${esc(r.yield)}</dd></div>` : ''}
+      ${total ? `<div><dt>Total</dt><dd>${esc(total)}</dd></div>` : ''}
+      <div><dt>Steps</dt><dd>${steps.length}</dd></div>
+      ${r.tags?.length ? `<div><dt>Tags</dt><dd>${r.tags.map(esc).join(', ')}</dd></div>` : ''}
+      ${r.source ? `<div class="wide"><dt>Source</dt><dd>${esc(r.source)}</dd></div>` : ''}
+    </dl>
+    <div class="add-columns">
+      <section>
+        <h3>Ingredients</h3>
+        ${(r.ingredientGroups || []).map((g) => `
+          ${g.name ? `<h4 class="ing-heading">${esc(g.name)}</h4>` : ''}
+          <ul class="bullets">${g.items.map((i) => `<li>${esc(i.raw)}</li>`).join('')}</ul>`).join('')}
+      </section>
+      <section>
+        <h3>Method</h3>
+        ${(r.stepGroups || []).map((g) => `
+          ${g.name ? `<h4 class="ing-heading">${esc(g.name)}</h4>` : ''}
+          <ol class="method" start="${g.steps[0].number}">${g.steps.map((st) => `<li>${esc(st.text)}</li>`).join('')}</ol>`).join('')}
+        ${r.notes?.length ? `<h3>Notes</h3><ul class="bullets">${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+      </section>
+    </div>
+    <div class="add-actions">
+      <button class="btn btn-quiet" data-action="add-restart">Start over</button>
+      <button class="btn btn-primary" data-action="add-save" ${draft.phase === 'saving' ? 'disabled' : ''}>${draft.phase === 'saving' ? 'Saving…' : 'Save recipe'}</button>
+    </div>`;
+}
+
+function addInputHTML() {
+  const link = draft.mode === 'url';
+  return `
+    <p class="muted">Mise reads the recipe and sets it up for cooking: ingredients, steps, timers. You check it before it's saved.</p>
+    <div class="seg add-mode" role="tablist">
+      <button role="tab" aria-selected="${link}" class="${link ? 'is-on' : ''}" data-action="add-mode" data-mode="url">From a link</button>
+      <button role="tab" aria-selected="${!link}" class="${link ? '' : 'is-on'}" data-action="add-mode" data-mode="text">Paste it in</button>
+    </div>
+    ${link
+      ? `<label class="field"><span>Recipe link</span><input id="add-url" type="url" inputmode="url" placeholder="https://" value="${esc(draft.url)}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></label>`
+      : `<label class="field"><span>Recipe</span><textarea id="add-text" rows="12" placeholder="Paste the title, ingredients and steps">${esc(draft.text)}</textarea></label>`}
+    ${draft.error ? `<p class="banner banner-warn">${esc(draft.error)}</p>` : ''}
+    <div class="add-actions">
+      <button class="btn btn-primary" data-action="add-read">Read recipe</button>
+    </div>`;
+}
+
+function renderAdd() {
+  document.body.dataset.view = 'add';
+  const s = account.status;
+  let body;
+  if (!account.token()) {
+    body = `
+      <p>${s.signedIn ? 'Your Google sign-in has expired.' : 'Sign in with Google to add recipes.'}</p>
+      <div class="add-actions"><button class="btn btn-primary" data-action="sign-in">Sign in</button></div>`;
+  } else if (draft.phase === 'reading') {
+    body = `
+      <div class="add-working">
+        <p class="add-pct" aria-hidden="true"><span id="add-pct">0</span>%</p>
+        <div class="add-bar" role="progressbar" aria-label="Reading recipe" aria-valuemin="0" aria-valuemax="100"><span id="add-bar"></span></div>
+        <p role="status"><strong id="add-stage">Reading recipe…</strong></p>
+        <p class="muted">This usually takes under a minute.</p>
+      </div>`;
+  } else if (draft.recipe && draft.phase !== 'input') {
+    body = addPreviewHTML(draft.recipe);
+  } else {
+    body = addInputHTML();
+  }
+  app.innerHTML = `
+    <div class="add">
+      <header class="topbar">
+        <a class="iconbtn" href="#/" aria-label="All recipes">${icon('back')}</a>
+        <div class="topbar-title"><h1>Add a recipe</h1></div>
+      </header>
+      <div class="add-body panel">${body}</div>
+    </div>`;
+}
+
+function addRedraw() {
+  saveDraft();
+  if (document.body.dataset.view === 'add') renderAdd();
+}
+
+// There's no real progress to report, so the counter eases towards 95% over
+// about a minute, naming what's probably happening, and jumps to 100% when
+// the recipe arrives.
+const READ_STAGES = {
+  url: [[0, 'Fetching the page…'], [12, 'Finding the recipe…'], [30, 'Reading the ingredients…'],
+    [55, 'Writing the steps…'], [75, 'Setting timers…'], [88, 'Checking it over…']],
+  text: [[0, 'Reading the recipe…'], [25, 'Sorting the ingredients…'], [50, 'Writing the steps…'],
+    [72, 'Setting timers…'], [88, 'Checking it over…']],
+};
+let progressTimer = null;
+
+function showProgress(pct) {
+  const num = document.getElementById('add-pct');
+  if (!num) return;
+  const stage = READ_STAGES[draft.mode].filter(([at]) => pct >= at).pop()[1];
+  num.textContent = Math.floor(pct);
+  document.getElementById('add-bar').style.width = `${pct}%`;
+  document.querySelector('.add-bar').setAttribute('aria-valuenow', Math.floor(pct));
+  const label = document.getElementById('add-stage');
+  if (label.textContent !== stage) label.textContent = stage;
+}
+
+function startProgress() {
+  const start = Date.now();
+  clearInterval(progressTimer);
+  progressTimer = setInterval(() => {
+    showProgress(95 * (1 - Math.exp(-(Date.now() - start) / 20000)));
+  }, 120);
+}
+
+async function stopProgress(done) {
+  clearInterval(progressTimer);
+  if (!done) return;
+  showProgress(100);
+  document.getElementById('add-stage')?.replaceChildren('Done!');
+  await new Promise((r) => { setTimeout(r, 450); });
+}
+
+async function addRead() {
+  const empty = draft.mode === 'url' ? !draft.url.trim() : !draft.text.trim();
+  if (empty) {
+    draft.error = draft.mode === 'url' ? 'Paste a link to a recipe first.' : 'Paste a recipe first.';
+    addRedraw();
+    return;
+  }
+  draft.phase = 'reading';
+  draft.error = '';
+  addRedraw();
+  startProgress();
+  try {
+    await convertDraft(account.token());
+    await stopProgress(true);
+    draft.phase = 'preview';
+  } catch (err) {
+    await stopProgress(false);
+    draft.phase = 'input';
+    draft.error = err.message;
+  }
+  addRedraw();
+}
+
+async function addSave() {
+  draft.phase = 'saving';
+  addRedraw();
+  try {
+    const id = await saveRecipe(account.token());
+    resetDraft();
+    await store.refresh();
+    if (findRecipe(id)) {
+      location.hash = `#/r/${encodeURIComponent(id)}`;
+      toast('Recipe saved');
+    } else {
+      location.hash = '#/';
+      toast('Recipe saved · it will show up in a moment');
+    }
+  } catch (err) {
+    draft.phase = 'preview';
+    addRedraw();
+    toast(`Couldn’t save: ${err.message}`);
+  }
+}
+
 // ---------- screen wake lock (keeps the iPad awake while cooking) ----------
 
 let wakeLock = null;
@@ -811,6 +993,7 @@ document.addEventListener('visibilitychange', () => {
 
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  if (parts[0] === 'add') return { name: 'add' };
   if (parts[0] === 'r' && parts[1]) {
     if (parts[2] === 's') return { name: 'step', id: parts[1], n: parseInt(parts[3], 10) || 1 };
     if (parts[2] === 'done') return { name: 'done', id: parts[1] };
@@ -829,11 +1012,13 @@ function render() {
   currentView = { ...route };
   const recipe = route.id ? findRecipe(route.id) : null;
 
-  if (route.name !== 'library' && !recipe) {
+  if (route.id && !recipe) {
     location.replace('#/');
     return;
   }
-  if (route.name === 'step') {
+  if (route.name === 'add') {
+    renderAdd();
+  } else if (route.name === 'step') {
     const total = allSteps(recipe).length;
     if (!canCook(recipe) || route.n < 1 || route.n > total) {
       location.replace(`#/r/${encodeURIComponent(recipe.id)}`);
@@ -848,7 +1033,7 @@ function render() {
     renderLibrary();
   }
 
-  setAwake(route.name !== 'library');
+  setAwake(route.name !== 'library' && route.name !== 'add');
   const sameScreen = prev && prev.name === route.name && prev.id === route.id && prev.n === route.n;
   if (!sameScreen) window.scrollTo(0, 0);
 }
@@ -867,6 +1052,17 @@ function rerender() {
 // ---------- events ----------
 
 app.addEventListener('input', (e) => {
+  const field = { 'add-url': 'url', 'add-text': 'text' }[e.target.id];
+  if (field) {
+    draft[field] = e.target.value;
+    saveDraft();
+    return;
+  }
+  if (e.target.id === 'add-title') {
+    draft.recipe.title = e.target.value;
+    saveDraft();
+    return;
+  }
   if (e.target.id !== 'q') return;
   ui.q = e.target.value;
   saveUI();
@@ -876,6 +1072,13 @@ app.addEventListener('input', (e) => {
 
 app.addEventListener('keydown', (e) => {
   if (e.target.id === 'q' && e.key === 'Enter') e.target.blur();
+  if (e.target.id === 'add-url' && e.key === 'Enter') addRead();
+});
+
+app.addEventListener('change', (e) => {
+  if (e.target.id !== 'add-category') return;
+  draft.recipe.category = e.target.value;
+  saveDraft();
 });
 
 app.addEventListener('click', (e) => {
@@ -969,6 +1172,22 @@ app.addEventListener('click', (e) => {
       accountOpen = false;
       updateAccountUI();
       toast('Signed out · favorites stay on this device');
+      break;
+    case 'add-mode':
+      draft.mode = el.dataset.mode;
+      draft.error = '';
+      addRedraw();
+      document.getElementById(draft.mode === 'url' ? 'add-url' : 'add-text')?.focus();
+      break;
+    case 'add-read':
+      addRead();
+      break;
+    case 'add-save':
+      if (draft.phase === 'preview') addSave();
+      break;
+    case 'add-restart':
+      resetDraft();
+      renderAdd();
       break;
     case 'scale':
       ui.scale[recipe.id] = Number(el.dataset.scale);

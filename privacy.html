@@ -35,7 +35,10 @@
       <li><strong>Your email address</strong>, shown in the app so you know which account you're using.</li>
       <li><strong>Its own app-data folder in your Google Drive</strong>, a hidden space only Mise can see. Mise saves one small file there with your favorites and recent recipes. It can't see or change any of your other Drive files.</li>
     </ul>
-    <p>Your sign-in stays in your browser. Mise has no server of its own, so nothing is stored anywhere except your browser and your Google Drive.</p>
+    <p>Your sign-in stays in your browser. Favorites and recents are stored only in your browser and your Google Drive.</p>
+
+    <h2>Adding recipes</h2>
+    <p>Only the owner of this recipe book can add recipes. When they do, the link or recipe text they paste is sent to Mise's small server, which fetches the page and sends the recipe to Anthropic's Claude API to convert it. The finished recipe is saved in the recipe file in Google Drive. Nothing else about you is sent.</p>
 
     <h2>Removing your data</h2>
     <ul>

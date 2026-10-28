@@ -1,0 +1,21 @@
+# Cloudflare Worker for adding recipes. Setup: see README.md, "Adding recipes
+# from the app". Keys go in secrets (wrangler secret put), never in this file:
+#   ANTHROPIC_API_KEY       a Claude API key
+#   GOOGLE_SERVICE_ACCOUNT  the service account's JSON key, the whole file
+#   OWNER_EMAIL             the one Google account allowed to add recipes
+name = "mise-add"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The format doc is sent to Claude with every recipe.
+rules = [{ type = "Text", globs = ["**/*.md"], fallthrough = true }]
+
+[vars]
+GOOGLE_CLIENT_ID = "562155838307-71nbi31vf5m5vqcvo9qibmb7kdrt05km.apps.googleusercontent.com"
+DRIVE_FILE_ID = "1ZT8OOjRZb9BdulizP7XLtBaN8HTRA6tR"
+ALLOWED_ORIGINS = "https://andrewglassett.github.io,http://localhost:8765"
+MODEL = "claude-sonnet-5-5"
+
+[observability]
+enabled = true

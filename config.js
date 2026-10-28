@@ -19,6 +19,11 @@ export const CONFIG = {
   // to hide sign-in. See README.md.
   googleClientId: '562155838307-71nbi31vf5m5vqcvo9qibmb7kdrt05km.apps.googleusercontent.com',
 
+  // Optional: the address of the Worker in worker/ turns on "Add recipe"
+  // (from a link or pasted text) for the owner. Leave it empty to hide it.
+  // See README.md.
+  addRecipeUrl: 'https://mise-add.mise-add.workers.dev',
+
   // How often to check for newer recipes while the app is open.
   pollMinutes: 5,
 

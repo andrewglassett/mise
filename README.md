@@ -97,6 +97,30 @@ To use it on your computer as well, add `http://localhost:8765` as an origin and
 
 While the app is in "Testing", only the test users you list can sign in.
 
+## Adding recipes from the app (optional)
+
+With this set up, a **+** button appears next to your account button. Paste a link to a recipe, or paste the recipe itself, and Mise converts it with Claude, shows you a preview, and saves it to `recipes.json` in your Drive when you tap Save. Only your Google account can add recipes.
+
+It needs a small server, because the Claude key and the key that can write to your Drive can't sit in a web page. The server is a Cloudflare Worker in [`worker/`](worker/). Cloudflare's free plan is plenty. Each recipe costs a few cents of Claude usage.
+
+It needs sign-in (above) and the Drive setup (recipes.json in Google Drive).
+
+1. **A Claude API key.** At [console.anthropic.com](https://console.anthropic.com), add some credit and create an API key. Under **Limits**, set a monthly spend limit.
+2. **A service account that can edit recipes.json.** In [Google Cloud Console](https://console.cloud.google.com/) (the same project), go to **IAM & Admin → Service Accounts → Create service account**. Give it a name and skip the optional steps. Open it, go to **Keys → Add key → Create new key → JSON**, and keep the downloaded file somewhere safe. Then share `recipes.json` in Google Drive with the service account's email address (it ends in `iam.gserviceaccount.com`) as **Editor**.
+3. **Deploy the Worker.** You need [Node.js](https://nodejs.org) and a free [Cloudflare](https://dash.cloudflare.com/sign-up) account. In `worker/wrangler.toml`, change `GOOGLE_CLIENT_ID`, `DRIVE_FILE_ID` and `ALLOWED_ORIGINS` to yours. Then, in the `worker` folder:
+   ```bash
+   npm install
+   npx wrangler login
+   npx wrangler secret put ANTHROPIC_API_KEY
+   npx wrangler secret put OWNER_EMAIL
+   npx wrangler secret put GOOGLE_SERVICE_ACCOUNT < path/to/service-account-key.json
+   npx wrangler deploy
+   ```
+   Each `secret put` asks for the value: paste your Claude key, then type your Google email. The last line prints the Worker's address, like `https://mise-add.<you>.workers.dev`.
+4. Put that address in `addRecipeUrl` in [`config.js`](config.js).
+
+Recipes you add go after the others in their category, and get the drawn placeholder until you give them a photo.
+
 ## Running it on your computer
 
 ```bash
@@ -113,6 +137,7 @@ Then open http://localhost:8765. With `recipesUrl` set and no Drive key, it read
 - **Cook mode:** one step per screen with the phase name and progress bar. Swipe, tap Back/Next, or use the arrow keys. Each step lists the ingredients it uses.
 - **Timers:** tap a time in the step text to start one. Timers keep running across steps and reloads, chime when done, and show how much of a range ("12–18 minutes") is left. Tap −1 or +1 to change a running timer by a minute; +1 on a finished timer starts it again with a minute. The timer button at the top of the library starts a 5-minute timer that isn't tied to a recipe.
 - **Pictures:** add a photo to any recipe with `image` (a Google Drive file or a URL). Recipes without one get a drawn placeholder in their category's colour.
+- **Add recipes:** paste a link or a recipe, check the preview, and save it to your recipe file (optional; needs the Worker).
 - **Sync:** sign in with Google to keep favorites and recent recipes the same on every device (optional).
 - **Works offline:** after the first visit, the app opens with your last-loaded recipes even without a connection.
 - **Themes:** the theme button picks light, dark or "Mise 95", a 1990s Windows look. Tap the Mise logotype to clear every filter and go back to the home shelves.

@@ -319,6 +319,8 @@ export function createAccount({ seed, onChange, onStatus, canRedirect }) {
     sync,
     noteFavorite,
     noteOpened,
+    /** The current Google access token, or null when it has expired. */
+    token: () => (tokenValid() ? acct.token : null),
     get status() {
       return {
         enabled,
