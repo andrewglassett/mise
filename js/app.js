@@ -425,7 +425,8 @@ function accountPanelHTML() {
         ? '<button class="btn" data-action="sign-in">Sign in again</button>'
         : '<button class="btn" data-action="sync-now">Sync now</button>'}
       <button class="btn btn-quiet" data-action="sign-out">Sign out</button>
-    </div>`;
+    </div>
+    <a class="account-privacy" href="privacy.html">Privacy</a>`;
 }
 
 function updateAccountUI() {
