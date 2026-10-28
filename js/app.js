@@ -110,6 +110,48 @@ function applyTheme() {
   }
 }
 
+function currentTheme() {
+  if (theme.retro) return '95';
+  return isDark() ? 'dark' : 'light';
+}
+
+const THEMES = [
+  ['light', 'Light', () => icon('sun', 20)],
+  ['dark', 'Dark', () => icon('moon', 20)],
+  ['95', 'Mise 95', () => '<span class="theme-95">95</span>'],
+];
+
+// One button that shows the current theme and opens a short menu.
+function themeMenuHTML() {
+  const now = currentTheme();
+  const [, label, glyph] = THEMES.find(([id]) => id === now);
+  return `
+    <div class="theme-wrap">
+      <button class="tool" data-action="theme-menu" aria-haspopup="menu" aria-expanded="false" title="Theme" aria-label="Theme: ${label}">${glyph()}</button>
+      <div class="theme-menu" role="menu" hidden>
+        ${THEMES.map(([id, name, g]) => `
+          <button class="theme-item" role="menuitemradio" aria-checked="${id === now}" data-action="set-theme" data-theme="${id}">
+            ${g()}<span>${name}</span>${id === now ? icon('check', 18) : ''}
+          </button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function setThemeMenu(open) {
+  const menu = document.querySelector('.theme-menu');
+  if (!menu) return;
+  menu.hidden = !open;
+  document.querySelector('[data-action="theme-menu"]').setAttribute('aria-expanded', open);
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.theme-wrap')) setThemeMenu(false);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') setThemeMenu(false);
+});
+
 systemDark.addEventListener('change', () => {
   if (!theme.mode && document.body.dataset.view === 'library') renderLibrary();
 });
@@ -358,11 +400,10 @@ function renderLibrary() {
     <div class="library">
       <aside class="filters">
         <div class="brand">
-          <h1>Mise</h1>
+          <h1><button class="brand-home" data-action="home" title="Show all recipes">Mise</button></h1>
           <div class="brand-tools">
             <button class="tool" data-action="quick-timer" title="Start a 5-minute timer" aria-label="Start a 5-minute timer">${icon('timer', 20)}</button>
-            <button class="tool" data-action="toggle-dark" aria-pressed="${isDark()}" ${theme.retro ? 'disabled' : ''} title="Dark mode" aria-label="Dark mode">${icon(isDark() ? 'sun' : 'moon', 20)}</button>
-            <button class="tool tool-retro" data-action="toggle-retro" aria-pressed="${theme.retro}" title="90s mode" aria-label="90s mode">95</button>
+            ${themeMenuHTML()}
             <span id="account-tool">${accountToolHTML()}</span>
           </div>
         </div>
@@ -886,17 +927,30 @@ app.addEventListener('click', (e) => {
     case 'quick-timer':
       startQuickTimer(5 * 60);
       break;
-    case 'toggle-dark':
-      theme.mode = isDark() ? 'light' : 'dark';
+    case 'home':
+      // The logotype: back to every recipe. The theme is left alone.
+      Object.assign(ui, { q: '', category: 'All', tags: [], maxTime: 0 });
+      saveUI();
+      renderLibrary();
+      window.scrollTo(0, 0);
+      break;
+    case 'theme-menu':
+      setThemeMenu(document.querySelector('.theme-menu').hidden);
+      break;
+    case 'set-theme': {
+      const next = el.dataset.theme;
+      const wasRetro = theme.retro;
+      if (next === '95') {
+        theme.retro = true;
+      } else {
+        theme.retro = false;
+        theme.mode = next;
+      }
       applyTheme();
       renderLibrary();
+      if (theme.retro && !wasRetro) toast('Welcome to Mise 95');
       break;
-    case 'toggle-retro':
-      theme.retro = !theme.retro;
-      applyTheme();
-      renderLibrary();
-      if (theme.retro) toast('Welcome to Mise 95');
-      break;
+    }
     case 'refresh':
       store.refresh().then(() => toast('Recipes are up to date'));
       break;

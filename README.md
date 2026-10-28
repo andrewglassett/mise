@@ -115,4 +115,4 @@ Then open http://localhost:8765. With `recipesUrl` set and no Drive key, it read
 - **Pictures:** add a photo to any recipe with `image` (a Google Drive file or a URL). Recipes without one get a drawn placeholder in their category's colour.
 - **Sync:** sign in with Google to keep favorites and recent recipes the same on every device (optional).
 - **Works offline:** after the first visit, the app opens with your last-loaded recipes even without a connection.
-- **Themes:** dark mode, and a "95" toggle for a 1990s Windows look.
+- **Themes:** the theme button picks light, dark or "Mise 95", a 1990s Windows look. Tap the Mise logotype to clear every filter and go back to the home shelves.

@@ -150,7 +150,22 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
   font-weight: 800; font-size: 0.85rem; letter-spacing: -0.02em;
 }
 .tool:disabled { opacity: 0.4; cursor: default; }
-.tool-retro[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.brand-home { font: inherit; letter-spacing: inherit; color: inherit; -webkit-touch-callout: none; }
+.brand-home:active { opacity: 0.7; }
+.theme-wrap { position: relative; }
+.theme-95 { font-weight: 800; font-size: 0.85rem; letter-spacing: -0.02em; }
+.theme-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 180px;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+}
+.theme-item {
+  display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px;
+  border-radius: 10px; text-align: left; font-weight: 500;
+}
+.theme-item > span:not(.theme-95) { flex: 1; }
+.theme-item .theme-95 { width: 20px; text-align: center; }
+.theme-item[aria-checked="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 #account-tool { display: contents; }
 .tool-account { background: var(--accent-soft); color: var(--accent); font-size: 1rem; position: relative; }
 .tool-account.needs-attention::after {
@@ -674,6 +689,9 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 [data-retro] .tool { width: 44px; height: 36px; font-family: var(--sans); }
 [data-retro] .sync { color: #000; }
 [data-retro] .tool-account { color: #000; }
+[data-retro] .theme-menu { background: #c0c0c0; border: 0; box-shadow: var(--raised); color: #000; padding: 3px; }
+[data-retro] .theme-item { min-height: 36px; font-family: var(--sans); }
+[data-retro] .theme-item[aria-checked="true"] { background: #000080; color: #fff; }
 [data-retro] .account-panel { background: #c0c0c0; border: 0; box-shadow: var(--sunken); color: #000; }
 [data-retro] .account-status { color: #000; }
 [data-retro] .btn-quiet { box-shadow: var(--raised); }
