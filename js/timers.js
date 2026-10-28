@@ -175,6 +175,29 @@ function togglePause(id) {
   render();
 }
 
+// Adds or removes a minute. On a finished timer, + starts it counting down again
+// from one minute and clears the alarm, so it can ring again.
+function adjust(id, seconds) {
+  const t = timers.find((x) => x.id === id);
+  if (!t) return;
+  unlockAudio();
+  const now = Date.now();
+  if (t.pausedRemaining != null) {
+    t.pausedRemaining = Math.max(0, t.pausedRemaining + seconds);
+  } else if (remaining(t, now) <= 0) {
+    if (seconds < 0) return;
+    t.endAt = now + seconds * 1000;
+    t.maxSeconds = t.minSeconds;
+    t.alerted = false;
+    t.alarmUntil = 0;
+    t.rangOut = false;
+  } else {
+    t.endAt = Math.max(now, t.endAt + seconds * 1000);
+  }
+  save();
+  render();
+}
+
 function isRinging(t, now = Date.now()) {
   return (t.alarmUntil || 0) > now;
 }
@@ -265,6 +288,8 @@ function render() {
           <span class="timer-sub">${sub}</span>
         </button>
         ${isRinging(t, now) ? `<button class="timer-stop" data-timer-silence="${t.id}">${icon('bellOff')}Stop</button>` : ''}
+        ${done ? '' : `<button class="timer-btn timer-adj" data-timer-adjust="-60" data-timer-id="${t.id}" aria-label="Remove a minute"${r <= 60 ? ' disabled' : ''}>−1</button>`}
+        <button class="timer-btn timer-adj" data-timer-adjust="60" data-timer-id="${t.id}" aria-label="Add a minute">+1</button>
         ${done ? '' : `<button class="timer-btn" data-timer-pause="${t.id}" aria-label="${paused ? 'Resume' : 'Pause'}">${paused ? icon('play') : icon('pause')}</button>`}
         <button class="timer-btn" data-timer-dismiss="${t.id}" aria-label="Dismiss timer">${icon('x')}</button>
       </div>`;
@@ -289,7 +314,9 @@ export function mountTimers(el, open) {
     const d = e.target.closest('[data-timer-dismiss]');
     const o = e.target.closest('[data-timer-open]');
     const m = e.target.closest('[data-timer-silence]');
-    if (m) silence(m.dataset.timerSilence);
+    const a = e.target.closest('[data-timer-adjust]');
+    if (a) adjust(a.dataset.timerId, Number(a.dataset.timerAdjust));
+    else if (m) silence(m.dataset.timerSilence);
     else if (p) togglePause(p.dataset.timerPause);
     else if (d) dismiss(d.dataset.timerDismiss);
     else if (o) {

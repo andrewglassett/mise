@@ -415,6 +415,8 @@ body[data-view="overview"] .timers { bottom: calc(var(--bottom) + 100px); }
 .timer-sub { font-size: 0.78rem; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .timer-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; flex: none; }
 .timer-btn:active { background: rgb(255 255 255 / 12%); }
+.timer-adj:disabled { opacity: 0.35; }
+.timer-adj { width: 40px; font-weight: 700; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 .timer.is-paused .timer-clock { opacity: 0.55; }
 .timer.is-done { background: var(--accent); color: var(--accent-ink); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { transform: scale(1.02); } }
@@ -424,6 +426,15 @@ body[data-view="overview"] .timers { bottom: calc(var(--bottom) + 100px); }
   border-radius: 999px; background: var(--accent-ink); color: var(--accent); font-weight: 700;
 }
 .timer-stop svg { width: 18px; height: 18px; }
+
+@media (max-width: 699px) {
+  .timer { gap: 0; padding-left: 14px; }
+  .timer-main { column-gap: 10px; }
+  .timer-clock { font-size: 1.45rem; }
+  .timer-btn { width: 38px; }
+  .timer-adj { width: 34px; }
+  .timer-stop { padding: 0 12px; margin-right: 2px; }
+}
 
 /* While an alarm rings, the whole screen pulses softly, for when the sound is off. */
 .alarm-flash {
@@ -436,7 +447,7 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 /* ---------- tablet & landscape ---------- */
 
 @media (min-width: 700px) {
-  .timers { left: auto; width: 360px; }
+  .timers { left: auto; width: 420px; }
   .overview-body { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; padding-top: 24px; }
 }
 
@@ -459,7 +470,7 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
   .step-ings { align-self: start; position: sticky; top: 110px; max-height: calc(100dvh - 240px); overflow-y: auto; }
   .step { padding-bottom: calc(var(--bottom) + 130px); }
   .cooknav { grid-template-columns: 220px 320px; justify-content: space-between; }
-  body[data-view="cook"] .timers { bottom: calc(var(--bottom) + 100px); left: 50%; transform: translateX(-50%); width: 380px; }
+  body[data-view="cook"] .timers { bottom: calc(var(--bottom) + 100px); left: 50%; transform: translateX(-50%); width: 440px; }
 
   .startbar { justify-content: flex-end; background: none; pointer-events: none; }
   .startbar .btn { width: auto; pointer-events: auto; box-shadow: 0 8px 24px rgb(0 0 0 / 18%); }
