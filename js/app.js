@@ -2,6 +2,7 @@ import { createStore } from './data.js';
 import {
   escapeHTML as esc, fmtQty, unitLabel, scaleMeasure, totalMinutes, timeSummary, timeLabel,
 } from './format.js';
+import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 
 const app = document.getElementById('app');
@@ -217,7 +218,9 @@ function recipeTags() {
 }
 
 function matches(r) {
-  if (ui.category !== 'All' && r.category !== ui.category) return false;
+  if (ui.category === FAVORITES) {
+    if (!isFavorite(r.id)) return false;
+  } else if (ui.category !== 'All' && r.category !== ui.category) return false;
   if (ui.tags.length && !ui.tags.every((t) => r.tags?.includes(t))) return false;
   if (ui.maxTime) {
     const m = totalMinutes(r);
@@ -268,11 +271,29 @@ function card(r, { showCategory = true } = {}) {
   const badges = badgesHTML(r);
   return `
     <a class="card" href="#/r/${encodeURIComponent(r.id)}">
+      ${artHTML(r, { variant: 'card', size: 230 })}
       ${showCategory ? `<span class="card-cat">${esc(r.category)}</span>` : ''}
       <span class="card-title">${favMark(r)}${esc(r.title)}</span>
       ${meta ? `<span class="card-meta">${meta}</span>` : ''}
       ${badges ? `<span class="card-badges">${badges}</span>` : ''}
     </a>`;
+}
+
+// Small side-by-side cards for Recent and Favorites: picture, category and
+// name only, with a star to save or unsave it.
+function miniCard(r) {
+  const fav = isFavorite(r.id);
+  return `
+    <div class="mini">
+      <a class="mini-link" href="#/r/${encodeURIComponent(r.id)}">
+        ${artHTML(r, { variant: 'mini', size: 76 })}
+        <span class="mini-text">
+          <span class="card-cat">${esc(r.category)}</span>
+          <span class="mini-title">${esc(r.title)}</span>
+        </span>
+      </a>
+      <button class="mini-fav ${fav ? 'is-fav' : ''}" data-action="favorite" data-id="${esc(r.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('star', 20)}</button>
+    </div>`;
 }
 
 // Compact rows are for full lists, so hundreds of recipes stay scannable.
@@ -283,6 +304,7 @@ function row(r, { showCategory = false } = {}) {
   const badges = badgesHTML(r);
   return `
     <a class="row" href="#/r/${encodeURIComponent(r.id)}">
+      ${artHTML(r, { variant: 'thumb', size: 52 })}
       <span class="row-main">
         <span class="row-title">${favMark(r)}${esc(r.title)}</span>
         ${sub || badges ? `<span class="row-sub">${sub}${badges ? `<span class="row-badges">${badges}</span>` : ''}</span>` : ''}
@@ -370,18 +392,24 @@ function isHome() {
 }
 
 const SHELF_SIZE = 8;
+const RECENT_MAX = 10;
+// Not a real category: the "See all" list for favorites.
+const FAVORITES = ':favorites';
 
-function shelf(title, list, { category = null, showCategory = true } = {}) {
+function shelf(title, list, {
+  category = null, showCategory = true, compact = false, limit = SHELF_SIZE, showCount = true,
+} = {}) {
   if (!list.length) return '';
-  const more = category && list.length > SHELF_SIZE;
+  const more = category && list.length > limit;
+  const item = compact ? miniCard : (r) => card(r, { showCategory });
   return `
-    <section class="shelf">
+    <section class="shelf ${compact ? 'shelf-compact' : ''}" data-shelf="${esc(title)}">
       <div class="shelf-head">
-        <h2>${esc(title)} <span class="count">${list.length}</span></h2>
+        <h2>${esc(title)}${showCount ? ` <span class="count">${list.length}</span>` : ''}</h2>
         ${category ? `<button class="linkbtn" data-action="category" data-cat="${esc(category)}">See all</button>` : ''}
       </div>
       <div class="shelf-row">
-        ${list.slice(0, SHELF_SIZE).map((r) => card(r, { showCategory })).join('')}
+        ${list.slice(0, limit).map(item).join('')}
         ${more ? `<button class="card card-more" data-action="category" data-cat="${esc(category)}">See all ${list.length} ${icon('next', 18)}</button>` : ''}
       </div>
     </section>`;
@@ -394,10 +422,21 @@ function renderHome(el) {
   const favorites = ui.favorites.map((id) => byId.get(id)).filter(Boolean).sort(byTitle);
   const cats = book.categories || [...new Set(book.recipes.map((r) => r.category))];
   el.innerHTML = retroFooter()
-    + shelf('Recent', recent)
-    + shelf('Favorites', favorites)
+    + shelf('Recent', recent, { compact: true, limit: RECENT_MAX, showCount: false })
+    + shelf('Favorites', favorites, { compact: true, category: FAVORITES })
     + cats.map((c) => shelf(c, book.recipes.filter((r) => r.category === c).sort(byTitle), { category: c, showCategory: false })).join('')
     + retroFooter('bottom');
+}
+
+// Redraws the home shelves after a star tap, keeping each row where it was
+// scrolled so the card doesn't jump away from under the finger.
+function refreshHome() {
+  const scrolled = new Map([...document.querySelectorAll('[data-shelf]')]
+    .map((s) => [s.dataset.shelf, s.querySelector('.shelf-row').scrollLeft]));
+  renderResults();
+  for (const s of document.querySelectorAll('[data-shelf]')) {
+    s.querySelector('.shelf-row').scrollLeft = scrolled.get(s.dataset.shelf) || 0;
+  }
 }
 
 function renderResults() {
@@ -427,7 +466,8 @@ function renderResults() {
   }
 
   if (ui.category !== 'All') {
-    el.innerHTML = `<h2 class="list-title">${esc(ui.category)}</h2>${count}${rowsHTML(list.map(([r]) => r).sort(byTitle))}`;
+    const title = ui.category === FAVORITES ? 'Favorites' : ui.category;
+    el.innerHTML = `<h2 class="list-title">${esc(title)}</h2>${count}${rowsHTML(list.map(([r]) => r).sort(byTitle), { showCategory: ui.category === FAVORITES })}`;
     return;
   }
 
@@ -450,7 +490,7 @@ function renderResults() {
 function renderOverview(recipe) {
   document.body.dataset.view = 'overview';
   if (ui.recent[0] !== recipe.id) {
-    ui.recent = [recipe.id, ...ui.recent.filter((id) => id !== recipe.id)].slice(0, SHELF_SIZE);
+    ui.recent = [recipe.id, ...ui.recent.filter((id) => id !== recipe.id)].slice(0, RECENT_MAX);
     saveUI();
   }
   const fav = isFavorite(recipe.id);
@@ -472,6 +512,7 @@ function renderOverview(recipe) {
         <button class="iconbtn fav-btn ${fav ? 'is-fav' : ''}" data-action="favorite" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('star')}</button>
       </header>
       <div class="overview-body">
+        ${artHTML(recipe, { variant: 'hero', size: 560 })}
         <section class="panel ingredients-panel">
           <div class="panel-head">
             <h2>Ingredients</h2>
@@ -740,13 +781,14 @@ app.addEventListener('click', (e) => {
       renderLibrary();
       window.scrollTo(0, 0);
       break;
-    case 'favorite':
-      ui.favorites = isFavorite(recipe.id)
-        ? ui.favorites.filter((id) => id !== recipe.id)
-        : [...ui.favorites, recipe.id];
+    case 'favorite': {
+      const id = el.dataset.id || recipe.id;
+      ui.favorites = isFavorite(id) ? ui.favorites.filter((x) => x !== id) : [...ui.favorites, id];
       saveUI();
-      rerender();
+      if (el.dataset.id) refreshHome();
+      else rerender();
       break;
+    }
     case 'tag': {
       const t = el.dataset.tag;
       ui.tags = ui.tags.includes(t) ? ui.tags.filter((x) => x !== t) : [...ui.tags, t];

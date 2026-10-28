@@ -39,6 +39,7 @@ Only a few fields are required. The rest make cook mode better: timers, preheat 
 | `cookMode` | no | `"steps"` or `"list"`. Leave it out and the app decides: recipes with 3 or fewer steps and under 450 characters of instructions show the method as a list on the ingredients screen; longer ones get step-by-step cook mode. Set it only to override that choice. |
 | `methodSource` | no | Set to `"suggested"` when the method isn't from the original recipe. The app shows an "Untested method" badge. |
 | `nutrition` | no | Free text. |
+| `image` | no | A photo for the recipe; see [Images](#images). Without one, the app draws a placeholder in the category's colour. |
 
 ## Times
 
@@ -58,6 +59,21 @@ Without a `total`, the app adds up the other times only when every one has `minu
   "total": { "text": "About 28 hrs (mostly resting)", "minutes": 1680 }
 }
 ```
+
+## Images
+
+```json
+"image": { "src": "1AbCdEfGhIjKlMnOpQrStUvWxYz012345", "alt": "Three baguettes cooling on a rack" }
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `src` | yes | A Google Drive file ID, or an image URL. A Drive file must be shared as "Anyone with the link"; the app loads a resized copy, so full-size phone photos are fine. A URL can be a full address or a path in the repo, like `images/baguette.jpg`. |
+| `alt` | no | A short description of the photo, for screen readers. |
+
+`"image": "1AbCdEf…"` (just the ID or URL) works too.
+
+If a photo can't load, the app shows the drawn placeholder instead. The placeholder picks its drawing and colour from the category name: bread, breakfast, mains, dips and sauces, pantry and ferments, snacks, desserts and drinks each have their own. Other categories get a bowl in a colour of their own.
 
 ## Ingredients
 

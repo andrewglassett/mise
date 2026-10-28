@@ -98,5 +98,6 @@ Then open http://localhost:8765. With `recipesUrl` set and no Drive key, it read
 - **Short recipes:** recipes with only a few short steps show the method as a list on the ingredients screen, with no walkthrough. Set `cookMode` on a recipe to override this.
 - **Cook mode:** one step per screen with the phase name and progress bar. Swipe, tap Back/Next, or use the arrow keys. Each step lists the ingredients it uses.
 - **Timers:** tap a time in the step text to start one. Timers keep running across steps and reloads, chime when done, and show how much of a range ("12–18 minutes") is left. Tap −1 or +1 to change a running timer by a minute; +1 on a finished timer starts it again with a minute. The timer button at the top of the library starts a 5-minute timer that isn't tied to a recipe.
+- **Pictures:** add a photo to any recipe with `image` (a Google Drive file or a URL). Recipes without one get a drawn placeholder in their category's colour.
 - **Works offline:** after the first visit, the app opens with your last-loaded recipes even without a connection.
 - **Themes:** dark mode, and a "95" toggle for a 1990s Windows look.

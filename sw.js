@@ -1,9 +1,9 @@
 // Network first, falling back to the cached app shell so Mise opens offline.
 // Recipe data is cached by the app itself (localStorage), not here.
-const CACHE = 'mise-shell-v1';
+const CACHE = 'mise-shell-v2';
 const SHELL = [
   './', 'index.html', 'config.js', 'css/app.css', 'js/app.js', 'js/data.js',
-  'js/format.js', 'js/timers.js', 'manifest.webmanifest', 'icons/icon.svg',
+  'js/format.js', 'js/timers.js', 'js/art.js', 'manifest.webmanifest', 'icons/icon.svg',
 ];
 
 self.addEventListener('install', (e) => {
