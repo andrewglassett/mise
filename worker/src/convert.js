@@ -8,7 +8,7 @@ const RULES = `You convert one recipe into Mise's recipe format. The format docu
 Faithfulness
 - Keep the author's quantities, temperatures, times and method. Never invent an amount. Lightly tighten wording so each step reads well on one screen, but don't change what it says.
 - If something is missing or cut off (an amount, a step, a time), keep what's there, set status to "partial" or "missingSteps", and say what's missing in warnings. If there's no method at all, you may write one, but then set methodSource to "suggested" and status "missingSteps".
-- Put the credit in source: the author and site, like "Maurizio Leo, The Perfect Loaf (theperfectloaf.com)".
+- Put the credit in source: the author and site, like "Maurizio Leo, The Perfect Loaf (theperfectloaf.com)", or "@handle on Instagram" for a post or screenshot that shows one.
 - Put tips, make-ahead and storage notes in notes. Leave out life stories, ads and reviews.
 
 Fields
@@ -38,9 +38,18 @@ warnings: short notes for the cook to check before saving. An empty list when no
 
 export async function convert(env, { source, categories, existingIds, existingTags }) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const intro = source.kind === 'paste'
-    ? 'Here is the recipe, pasted in by the cook:'
-    : `Here is the recipe from ${source.url}${source.title ? ` (page title: "${source.title}")` : ''}, as ${source.kind === 'json-ld' ? 'the page\'s schema.org JSON-LD' : 'the page\'s text'}:`;
+  const as = { 'json-ld': 'the page\'s schema.org JSON-LD', text: 'the page\'s text' };
+  let content;
+  if (source.kind === 'photo') {
+    content = [
+      ...source.images.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.type, data: img.data } })),
+      { type: 'text', text: `Here ${source.images.length > 1 ? `are ${source.images.length} photos` : 'is a photo'} of the recipe, taken or screenshotted by the cook. Read every word, handwriting too. Ignore app buttons, usernames and like counts. If the photos show only a finished dish with no recipe, say so in warnings and set status to "missingSteps".` },
+    ];
+  } else if (source.kind === 'paste') {
+    content = `Here is the recipe, pasted in by the cook:\n\n<recipe>\n${source.content}\n</recipe>`;
+  } else {
+    content = `Here is the recipe from ${source.url}${source.title ? ` (page title: "${source.title}")` : ''}, as ${as[source.kind]}:\n\n<recipe>\n${source.content}\n</recipe>`;
+  }
 
   const stream = client.messages.stream({
     model: env.MODEL,
@@ -55,7 +64,7 @@ export async function convert(env, { source, categories, existingIds, existingTa
       { type: 'text', text: `${RULES}\n\n<format>\n${FORMAT}\n</format>`, cache_control: { type: 'ephemeral' } },
       { type: 'text', text: `Categories, in order: ${categories.join(' | ')}\nExisting tags: ${existingTags.join(', ')}\nExisting ids: ${existingIds.join(', ')}` },
     ],
-    messages: [{ role: 'user', content: `${intro}\n\n<recipe>\n${source.content}\n</recipe>` }],
+    messages: [{ role: 'user', content }],
   });
   let message;
   try {

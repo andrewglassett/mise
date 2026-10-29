@@ -2,7 +2,8 @@
 // with Claude, and saves it to recipes.json in Google Drive. The app can't do
 // either itself, because both need keys that can't sit in a web page.
 //
-//   POST /convert  { url } or { text }  ->  { recipe, warnings }
+//   POST /convert  { url }, { text } or { images: [{ type, data }] }
+//                                       ->  { recipe, warnings }
 //   POST /save     { recipe }           ->  { id, modifiedTime }
 //
 // Both need the owner's Google sign-in from the app (Authorization: Bearer).
@@ -13,6 +14,8 @@ import { convert } from './convert.js';
 import { tidy, insert } from './recipe.js';
 
 const MAX_PASTE = 60_000;
+const MAX_PHOTOS = 4;
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 function cors(request, env) {
   const origin = request.headers.get('Origin') || '';
@@ -30,10 +33,17 @@ async function handleConvert(body, env) {
   let source;
   if (body.url) {
     source = await readPage(String(body.url).trim());
+  } else if (Array.isArray(body.images) && body.images.length) {
+    const images = body.images.slice(0, MAX_PHOTOS);
+    // Claude takes images up to 5 MB; the app sends them much smaller.
+    if (images.some((i) => !PHOTO_TYPES.includes(i.type) || typeof i.data !== 'string' || i.data.length > 5_000_000)) {
+      throw new HttpError(400, 'Those photos couldn’t be read. Try a JPEG or PNG.');
+    }
+    source = { kind: 'photo', images };
   } else if (body.text?.trim()) {
     source = { kind: 'paste', content: String(body.text).slice(0, MAX_PASTE) };
   } else {
-    throw new HttpError(400, 'Paste a link or a recipe');
+    throw new HttpError(400, 'Paste a link or a recipe, or choose a photo');
   }
   const { book } = await readBook(env);
   const out = await convert(env, {

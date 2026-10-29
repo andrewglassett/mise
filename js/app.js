@@ -6,7 +6,7 @@ import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 import { createAccount } from './account.js';
 import {
-  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe,
+  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, takeShared, preparePhoto, MAX_PHOTOS,
 } from './add.js';
 
 const app = document.getElementById('app');
@@ -69,6 +69,7 @@ function icon(name, size = 22) {
     moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    photo: '<rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5.5l1.2-2h4.6l1.2 2"/>',
     user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   }[name];
   return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -828,21 +829,57 @@ function addPreviewHTML(r) {
     </div>`;
 }
 
+const ADD_MODES = [['url', 'From a link'], ['text', 'Paste it in'], ['photo', 'From a photo']];
+
+function addFieldHTML() {
+  if (draft.mode === 'url') {
+    return `<label class="field"><span>Recipe link</span><input id="add-url" type="url" inputmode="url" placeholder="https://" value="${esc(draft.url)}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></label>`;
+  }
+  if (draft.mode === 'text') {
+    return `<label class="field"><span>Recipe</span><textarea id="add-text" rows="12" placeholder="Paste the title, ingredients and steps">${esc(draft.text)}</textarea></label>`;
+  }
+  const room = draft.images.length < MAX_PHOTOS;
+  return `
+    <div class="field">
+      <span>Photos</span>
+      <div class="add-photos">
+        ${draft.images.map((img, i) => `
+          <figure class="add-photo">
+            <img src="${img.preview}" alt="Photo ${i + 1}">
+            <button class="add-photo-x" data-action="add-photo-remove" data-index="${i}" aria-label="Remove photo ${i + 1}">${icon('x', 16)}</button>
+          </figure>`).join('')}
+        ${room ? `
+          <label class="add-photo-pick">
+            <input id="add-photo-input" type="file" accept="image/*" multiple hidden>
+            ${icon('photo', 26)}<span>${draft.images.length ? 'Add another' : 'Choose photos'}</span>
+          </label>` : ''}
+      </div>
+      <p class="muted add-hint">A screenshot of an Instagram story, a cookbook page or a recipe card. Up to ${MAX_PHOTOS} photos for a recipe that runs over several pages.</p>
+    </div>`;
+}
+
 function addInputHTML() {
-  const link = draft.mode === 'url';
   return `
     <p class="muted">Mise reads the recipe and sets it up for cooking: ingredients, steps, timers. You check it before it's saved.</p>
     <div class="seg add-mode" role="tablist">
-      <button role="tab" aria-selected="${link}" class="${link ? 'is-on' : ''}" data-action="add-mode" data-mode="url">From a link</button>
-      <button role="tab" aria-selected="${!link}" class="${link ? '' : 'is-on'}" data-action="add-mode" data-mode="text">Paste it in</button>
+      ${ADD_MODES.map(([mode, label]) => `<button role="tab" aria-selected="${draft.mode === mode}" class="${draft.mode === mode ? 'is-on' : ''}" data-action="add-mode" data-mode="${mode}">${label}</button>`).join('')}
     </div>
-    ${link
-      ? `<label class="field"><span>Recipe link</span><input id="add-url" type="url" inputmode="url" placeholder="https://" value="${esc(draft.url)}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></label>`
-      : `<label class="field"><span>Recipe</span><textarea id="add-text" rows="12" placeholder="Paste the title, ingredients and steps">${esc(draft.text)}</textarea></label>`}
+    ${addFieldHTML()}
     ${draft.error ? `<p class="banner banner-warn">${esc(draft.error)}</p>` : ''}
     <div class="add-actions">
       <button class="btn btn-primary" data-action="add-read">Read recipe</button>
     </div>`;
+}
+
+async function addPhotos(files) {
+  const room = MAX_PHOTOS - draft.images.length;
+  try {
+    for (const file of [...files].slice(0, room)) draft.images.push(await preparePhoto(file));
+    draft.error = files.length > room ? `Only ${MAX_PHOTOS} photos fit in one recipe.` : '';
+  } catch {
+    draft.error = 'That photo couldn’t be opened. Try a JPEG or PNG, or a screenshot.';
+  }
+  addRedraw();
 }
 
 function renderAdd() {
@@ -889,6 +926,8 @@ const READ_STAGES = {
     [55, 'Writing the steps…'], [75, 'Setting timers…'], [88, 'Checking it over…']],
   text: [[0, 'Reading the recipe…'], [25, 'Sorting the ingredients…'], [50, 'Writing the steps…'],
     [72, 'Setting timers…'], [88, 'Checking it over…']],
+  photo: [[0, 'Uploading…'], [10, 'Reading the photo…'], [35, 'Reading the ingredients…'],
+    [58, 'Writing the steps…'], [76, 'Setting timers…'], [88, 'Checking it over…']],
 };
 let progressTimer = null;
 
@@ -920,9 +959,13 @@ async function stopProgress(done) {
 }
 
 async function addRead() {
-  const empty = draft.mode === 'url' ? !draft.url.trim() : !draft.text.trim();
-  if (empty) {
-    draft.error = draft.mode === 'url' ? 'Paste a link to a recipe first.' : 'Paste a recipe first.';
+  const missing = {
+    url: !draft.url.trim() && 'Paste a link to a recipe first.',
+    text: !draft.text.trim() && 'Paste a recipe first.',
+    photo: !draft.images.length && 'Choose a photo of the recipe first.',
+  }[draft.mode];
+  if (missing) {
+    draft.error = missing;
     addRedraw();
     return;
   }
@@ -986,8 +1029,10 @@ document.addEventListener('visibilitychange', () => {
 // ---------- routing ----------
 
 function parseRoute() {
-  const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
-  if (parts[0] === 'add') return { name: 'add' };
+  const raw = location.hash.replace(/^#\/?/, '');
+  // #/add, or #/add?url=… when a link is shared to Mise.
+  if (/^add(\?|$)/.test(raw)) return { name: 'add', params: new URLSearchParams(raw.slice(4)) };
+  const parts = raw.split('/').map(decodeURIComponent);
   if (parts[0] === 'r' && parts[1]) {
     if (parts[2] === 's') return { name: 'step', id: parts[1], n: parseInt(parts[3], 10) || 1 };
     if (parts[2] === 'done') return { name: 'done', id: parts[1] };
@@ -1011,7 +1056,11 @@ function render() {
     return;
   }
   if (route.name === 'add') {
+    const shared = takeShared(route.params);
+    if (shared) history.replaceState(null, '', '#/add');
     renderAdd();
+    // Shared from another app: start reading straight away.
+    if (shared === 'read' && account.token()) addRead();
   } else if (route.name === 'step') {
     const total = allSteps(recipe).length;
     if (!canCook(recipe) || route.n < 1 || route.n > total) {
@@ -1070,6 +1119,10 @@ app.addEventListener('keydown', (e) => {
 });
 
 app.addEventListener('change', (e) => {
+  if (e.target.id === 'add-photo-input') {
+    addPhotos(e.target.files);
+    return;
+  }
   if (e.target.id !== 'add-category') return;
   draft.recipe.category = e.target.value;
   saveDraft();
@@ -1164,7 +1217,11 @@ app.addEventListener('click', (e) => {
       draft.mode = el.dataset.mode;
       draft.error = '';
       addRedraw();
-      document.getElementById(draft.mode === 'url' ? 'add-url' : 'add-text')?.focus();
+      document.getElementById({ url: 'add-url', text: 'add-text' }[draft.mode])?.focus();
+      break;
+    case 'add-photo-remove':
+      draft.images.splice(Number(el.dataset.index), 1);
+      addRedraw();
       break;
     case 'add-read':
       addRead();
@@ -1259,6 +1316,14 @@ const store = createStore((nextBook, info) => {
   }
   if (info.updated) toast('Recipes updated');
 });
+
+// Android's share sheet opens ./?url=…&text=…; send that to the Add screen.
+const sharedQuery = new URLSearchParams(location.search);
+if (sharedQuery.get('url') || sharedQuery.get('text')) {
+  const p = new URLSearchParams();
+  p.set(sharedQuery.get('url') ? 'url' : 'text', sharedQuery.get('url') || sharedQuery.get('text'));
+  history.replaceState(null, '', `${location.pathname}#/add?${p}`);
+}
 
 // When the account needs a fresh sign-in, the page goes to Google and comes
 // straight back, so skip drawing it in between.

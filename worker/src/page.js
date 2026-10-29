@@ -34,7 +34,15 @@ function pageText(html) {
   return decode(body).replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim().slice(0, MAX_TEXT);
 }
 
-/** Returns { url, title, recipe } with recipe either JSON-LD or page text. */
+function meta(html, name) {
+  const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']*)["']`, 'i'))
+    || html.match(new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${name}["']`, 'i'));
+  return m ? decode(m[1]).trim() : '';
+}
+
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+
+/** Returns { url, title, kind, content }: the page's JSON-LD or its text. */
 export async function readPage(url) {
   let target;
   try {
@@ -43,10 +51,14 @@ export async function readPage(url) {
     throw new Error('That doesn’t look like a web address');
   }
   if (!/^https?:$/.test(target.protocol)) throw new Error('Only http and https links work');
+  // Instagram only shows posts to signed-in people, so a server can't read them.
+  if (/(^|\.)instagram\.com$/.test(target.hostname)) {
+    throw new Error('Instagram doesn’t let other apps read posts. Take a screenshot of the recipe and use From a photo.');
+  }
 
   const res = await fetch(target, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+      'User-Agent': UA,
       Accept: 'text/html,application/xhtml+xml',
     },
     redirect: 'follow',
@@ -67,7 +79,9 @@ export async function readPage(url) {
       // Some sites ship invalid JSON-LD; fall through to the page text.
     }
   }
-  const text = pageText(html);
+  // Pages built by scripts have little text; their share description helps.
+  const description = meta(html, 'og:description') || meta(html, 'description');
+  const text = `${description ? `${description}\n\n` : ''}${pageText(html)}`.trim();
   if (text.length < 200) throw new Error('Couldn’t read a recipe from that page. Try copying it and pasting it in.');
   return { url: res.url, title, kind: 'text', content: text };
 }

@@ -121,6 +121,22 @@ It needs sign-in (above) and the Drive setup (recipes.json in Google Drive).
 
 Recipes you add go after the others in their category, and get the drawn placeholder until you give them a photo.
 
+### Sharing recipes to Mise from other apps
+
+With Add recipe set up, you can send a recipe to Mise from another app's **Share** button, such as a web page in Safari. Mise opens its Add screen with the link and starts reading it. Instagram doesn't let other apps read its posts, so sharing an Instagram post or story opens **From a photo** instead. For Instagram it's quicker to skip sharing: screenshot the recipe, then open Mise, tap **+** and choose **From a photo**.
+
+**iPhone, iPad and Mac:** Apple doesn't let home-screen web apps receive shares, so a Shortcut does it. In the Shortcuts app:
+
+1. Tap **+** to make a new shortcut, and name it **Add to Mise**.
+2. Open its details (the **ⓘ** button, or the settings at the top) and turn on **Show in Share Sheet**. Set what it receives to **URLs** and **Text**.
+3. Add the action **URL Encode**, encoding the **Shortcut Input**.
+4. Add the action **Text** and type `https://<you>.github.io/mise/#/add?url=`, then insert the **URL Encoded Text** variable right after the `=`.
+5. Add the action **Open URLs** with that Text.
+
+Now **Add to Mise** appears when you tap Share. It opens Mise in Safari rather than the home-screen app, so sign in to Mise in Safari once.
+
+**Android:** add Mise to your home screen from Chrome and it appears in the share sheet by itself.
+
 ## Running it on your computer
 
 ```bash
@@ -137,7 +153,7 @@ Then open http://localhost:8765. With `recipesUrl` set and no Drive key, it read
 - **Cook mode:** one step per screen with the phase name and progress bar. Swipe, tap Back/Next, or use the arrow keys. Each step lists the ingredients it uses.
 - **Timers:** tap a time in the step text to start one. Timers keep running across steps and reloads, chime when done, and show how much of a range ("12–18 minutes") is left. Tap −1 or +1 to change a running timer by a minute; +1 on a finished timer starts it again with a minute. The timer button at the top of the library starts a 5-minute timer that isn't tied to a recipe.
 - **Pictures:** add a photo to any recipe with `image` (a Google Drive file or a URL). Recipes without one get a drawn placeholder in their category's colour.
-- **Add recipes:** paste a link or a recipe, check the preview, and save it to your recipe file (optional; needs the Worker).
+- **Add recipes:** paste a link or a recipe, or choose photos of one, check the preview, and save it to your recipe file. Share links to Mise from Safari and other apps (optional; needs the Worker).
 - **Sync:** sign in with Google to keep favorites and recent recipes the same on every device (optional).
 - **Works offline:** after the first visit, the app opens with your last-loaded recipes even without a connection.
 - **Themes:** the Theme switch under the filters picks light, dark or "Mise 95", a 1990s Windows look. Tap the Mise logotype to clear every filter and go back to the home shelves.

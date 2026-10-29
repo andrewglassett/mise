@@ -45,7 +45,8 @@ export function tidy(input, book) {
   if (r.totalTime) {
     // From the conversion: times arrive as totalTime plus a list of parts.
     const parts = (r.timeParts || []).filter((p) => TIME_PARTS.includes(p.part) && p.part !== 'total');
-    r.times = { ...Object.fromEntries(parts.map(({ part, ...t }) => [part, t])), total: r.totalTime };
+    r.times = Object.fromEntries(parts.map(({ part, ...t }) => [part, t]));
+    if (r.totalTime.text?.trim()) r.times.total = r.totalTime;
     delete r.totalTime;
     delete r.timeParts;
   }
@@ -78,6 +79,10 @@ export function tidy(input, book) {
     }
   }
   if (!n && r.type !== 'notes') throw new Error('The recipe has no steps');
+  if (r.times) {
+    for (const [k, t] of Object.entries(r.times)) if (!t?.text?.trim()) delete r.times[k];
+    if (!Object.keys(r.times).length) delete r.times;
+  }
   if (r.tags) r.tags = [...new Set(r.tags.map((t) => t.toLowerCase().trim()).filter(Boolean))];
   return dropEmpty(r);
 }
