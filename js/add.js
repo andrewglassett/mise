@@ -119,6 +119,11 @@ export async function convertDraft(token) {
   draft.warnings = warnings;
 }
 
+/** Removes a recipe from recipes.json. */
+export async function deleteRecipe(token, id) {
+  await post('/delete', token, { id });
+}
+
 /** Saves draft.recipe to recipes.json. Returns its final id. */
 export async function saveRecipe(token) {
   const { id } = await post('/save', token, { recipe: draft.recipe });

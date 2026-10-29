@@ -5,6 +5,7 @@
 //   POST /convert  { url }, { text } or { images: [{ type, data }] }
 //                                       ->  { recipe, warnings }
 //   POST /save     { recipe }           ->  { id, modifiedTime }
+//   POST /delete   { id }               ->  { id, modifiedTime }
 //
 // Both need the owner's Google sign-in from the app (Authorization: Bearer).
 
@@ -66,6 +67,14 @@ async function handleSave(body, env) {
   return { id: recipe.id, modifiedTime };
 }
 
+async function handleDelete(body, env) {
+  const { book, version } = await readBook(env);
+  const recipes = book.recipes.filter((r) => r.id !== body.id);
+  if (recipes.length === book.recipes.length) throw new HttpError(404, 'That recipe is already gone');
+  const modifiedTime = await writeBook(env, { ...book, recipes }, version);
+  return { id: body.id, modifiedTime };
+}
+
 export default {
   async fetch(request, env) {
     const headers = cors(request, env);
@@ -73,7 +82,7 @@ export default {
     const json = (data, status = 200) => Response.json(data, { status, headers });
 
     const { pathname } = new URL(request.url);
-    const route = { '/convert': handleConvert, '/save': handleSave }[pathname];
+    const route = { '/convert': handleConvert, '/save': handleSave, '/delete': handleDelete }[pathname];
     if (!route || request.method !== 'POST') return json({ error: 'Not found' }, 404);
 
     try {

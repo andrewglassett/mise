@@ -10,6 +10,7 @@
   --accent-soft: #f6dfd2;
   --warn: #8a5a00;
   --warn-soft: #fbedc9;
+  --danger: #b3261e;
   --ok: #3c7a4a;
   --shadow: 0 1px 2px rgb(60 40 20 / 6%), 0 4px 14px rgb(60 40 20 / 6%);
   --radius: 16px;
@@ -35,6 +36,7 @@
     --accent-soft: #3d261a;
     --warn: #f0c56a;
     --warn-soft: #3a2e14;
+    --danger: #ff8a80;
     --ok: #7fc28f;
     --shadow: 0 1px 2px rgb(0 0 0 / 30%);
     color-scheme: dark;
@@ -53,6 +55,7 @@
   --accent-soft: #3d261a;
   --warn: #f0c56a;
   --warn-soft: #3a2e14;
+  --danger: #ff8a80;
   --ok: #7fc28f;
   --shadow: 0 1px 2px rgb(0 0 0 / 30%);
   color-scheme: dark;
@@ -419,7 +422,13 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
 
 .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 14px 18px; margin: 0; }
 .facts div.wide { grid-column: 1 / -1; }
-.credit { grid-column: 1 / -1; margin: 4px 4px 0; font-size: 0.8rem; color: var(--muted); }
+.credit {
+  grid-column: 1 / -1; margin: 4px 4px 0; font-size: 0.8rem; color: var(--muted);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px;
+}
+.credit .linkbtn { font-size: 0.85rem; }
+.delete-btn { color: var(--danger); }
+.delete-confirm { display: inline-flex; align-items: center; gap: 12px; font-weight: 600; color: var(--ink); }
 .facts dt { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .facts dd { margin: 2px 0 0; font-weight: 600; }
 
@@ -686,6 +695,7 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
   --accent-soft: #fff;
   --warn: #000;
   --warn-soft: #ffffe1;
+  --danger: #c00000;
   --ok: #008000;
   --shadow: none;
   --radius: 0;
@@ -736,6 +746,7 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 [data-retro] .btn-primary { font-weight: 700; outline: 1px solid #000; outline-offset: -1px; }
 [data-retro] .btn-big { min-height: 52px; }
 [data-retro] .linkbtn { color: #0000ee; text-decoration: underline; }
+[data-retro] .delete-btn { color: var(--danger); }
 [data-retro] .seg { background: none; gap: 2px; padding: 0; }
 
 /* Sunken fields */

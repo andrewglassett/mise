@@ -6,7 +6,7 @@ import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 import { createAccount } from './account.js';
 import {
-  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, takeShared, preparePhoto, MAX_PHOTOS,
+  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, deleteRecipe, takeShared, preparePhoto, MAX_PHOTOS,
 } from './add.js';
 
 const app = document.getElementById('app');
@@ -646,13 +646,56 @@ function renderOverview(recipe) {
           ${steps.length === 0 && recipe.type !== 'notes' ? '<p class="muted">This recipe has no steps yet.</p>' : ''}
           ${steps.length && !listView ? methodHTML(recipe) : ''}
         </section>
-        ${recipe.source ? `<p class="credit">Source: ${esc(recipe.source)}</p>` : ''}
+        ${recipe.source || canEdit() ? `
+          <div class="credit">
+            ${recipe.source ? `<span>Source: ${esc(recipe.source)}</span>` : ''}
+            ${canEdit() ? deleteHTML(recipe) : ''}
+          </div>` : ''}
       </div>
       ${cook ? `
         <footer class="startbar">
           <a class="btn btn-primary btn-big" href="#/r/${encodeURIComponent(recipe.id)}/s/1">Start cooking ${icon('next')}</a>
         </footer>` : ''}
     </div>`;
+}
+
+// Deleting asks once more in place, so a stray tap can't remove a recipe.
+let confirmingDelete = null;
+
+function canEdit() {
+  return addEnabled && account.status.signedIn;
+}
+
+function deleteHTML(recipe) {
+  if (confirmingDelete !== recipe.id) {
+    return '<button class="linkbtn delete-btn" data-action="delete-ask">Delete recipe</button>';
+  }
+  return `
+    <span class="delete-confirm" role="group" aria-label="Confirm delete">
+      Delete this recipe?
+      <button class="linkbtn delete-btn" data-action="delete-confirm">Delete</button>
+      <button class="linkbtn" data-action="delete-cancel">Cancel</button>
+    </span>`;
+}
+
+async function deleteCurrent(recipe, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+  try {
+    await deleteRecipe(account.token(), recipe.id);
+    confirmingDelete = null;
+    if (isFavorite(recipe.id)) account.noteFavorite(recipe.id, false);
+    ui.favorites = ui.favorites.filter((x) => x !== recipe.id);
+    ui.recent = ui.recent.filter((x) => x !== recipe.id);
+    saveUI();
+    location.hash = '#/';
+    await store.refresh();
+    toast(`Deleted “${recipe.title}”`);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Delete';
+    toast(`Couldn’t delete: ${err.message}`);
+  }
 }
 
 // The whole method as a numbered list. For short recipes it's the main way to
@@ -1246,6 +1289,17 @@ app.addEventListener('click', (e) => {
       rerender();
       break;
     }
+    case 'delete-ask':
+      confirmingDelete = recipe.id;
+      rerender();
+      break;
+    case 'delete-cancel':
+      confirmingDelete = null;
+      rerender();
+      break;
+    case 'delete-confirm':
+      deleteCurrent(recipe, el);
+      break;
     case 'uncheck-all':
       ui.checked[recipe.id] = [];
       saveUI();
