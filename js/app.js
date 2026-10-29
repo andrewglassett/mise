@@ -1,6 +1,6 @@
 import { createStore } from './data.js';
 import {
-  escapeHTML as esc, fmtQty, unitLabel, scaleMeasure, totalMinutes, timeSummary, timeLabel,
+  escapeHTML as esc, fmtQty, unitLabel, scaleMeasure, timeSummary, timeLabel,
 } from './format.js';
 import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
@@ -35,7 +35,7 @@ const account = createAccount({
 
 function loadUI() {
   const defaults = {
-    q: '', category: 'All', tags: [], maxTime: 0, scale: {}, checked: {}, favorites: [], recent: [],
+    q: '', category: 'All', tags: [], scale: {}, checked: {}, favorites: [], recent: [],
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem('mise.ui.v1')) };
@@ -268,10 +268,6 @@ function matches(r) {
     if (!isFavorite(r.id)) return false;
   } else if (ui.category !== 'All' && r.category !== ui.category) return false;
   if (ui.tags.length && !ui.tags.every((t) => r.tags?.includes(t))) return false;
-  if (ui.maxTime) {
-    const m = totalMinutes(r);
-    if (!m || m > ui.maxTime) return false;
-  }
   return true;
 }
 
@@ -381,7 +377,6 @@ function renderLibrary() {
   const counts = { All: book.recipes.length };
   for (const r of book.recipes) counts[r.category] = (counts[r.category] || 0) + 1;
   const cats = ['All', ...(book.categories || [...new Set(book.recipes.map((r) => r.category))])];
-  const times = [[0, 'Any time'], [30, '≤ 30 min'], [60, '≤ 1 hr']];
 
   app.innerHTML = `
     <div class="library">
@@ -393,7 +388,6 @@ function renderLibrary() {
             <span id="add-tool">${addToolHTML()}</span>
           </div>
         </div>
-        <button class="sync" data-action="refresh" title="Check for new recipes">${icon('refresh', 15)}<span id="sync-text">${syncText()}</span></button>
         <label class="search">
           ${icon('search')}
           <input id="q" type="search" placeholder="Search recipes or ingredients" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
@@ -407,8 +401,6 @@ function renderLibrary() {
         </nav>
         <div class="chips">
           ${recipeTags().map((t) => `<button class="chip ${ui.tags.includes(t) ? 'is-on' : ''}" data-action="tag" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}
-          <span class="chip-sep"></span>
-          ${times.map(([v, l]) => `<button class="chip ${ui.maxTime === v ? 'is-on' : ''}" data-action="time" data-time="${v}">${l}</button>`).join('')}
         </div>
         ${settingsHTML('side')}
       </aside>
@@ -448,6 +440,7 @@ function settingsHTML(where) {
     <section class="settings" aria-label="Settings">
       <div class="setting">${themeSwitchHTML()}</div>
       <div class="setting account-box" data-where="${where}">${accountBoxHTML(where)}</div>
+      <button class="sync" data-action="refresh" title="Check for new recipes">${icon('refresh', 15)}<span class="sync-text">${syncText()}</span></button>
     </section>`;
 }
 
@@ -523,7 +516,7 @@ function byTitle(a, b) {
 }
 
 function isHome() {
-  return ui.category === 'All' && !ui.q.trim() && !ui.tags.length && !ui.maxTime;
+  return ui.category === 'All' && !ui.q.trim() && !ui.tags.length;
 }
 
 const SHELF_SIZE = 8;
@@ -1276,11 +1269,6 @@ app.addEventListener('click', (e) => {
       renderLibrary();
       break;
     }
-    case 'time':
-      ui.maxTime = Number(el.dataset.time);
-      saveUI();
-      renderLibrary();
-      break;
     case 'clear-search':
       ui.q = '';
       saveUI();
@@ -1288,7 +1276,7 @@ app.addEventListener('click', (e) => {
       document.getElementById('q').focus();
       break;
     case 'reset-filters':
-      Object.assign(ui, { q: '', category: 'All', tags: [], maxTime: 0 });
+      Object.assign(ui, { q: '', category: 'All', tags: [] });
       saveUI();
       renderLibrary();
       break;
@@ -1297,7 +1285,7 @@ app.addEventListener('click', (e) => {
       break;
     case 'home':
       // The logotype: back to every recipe. The theme is left alone.
-      Object.assign(ui, { q: '', category: 'All', tags: [], maxTime: 0 });
+      Object.assign(ui, { q: '', category: 'All', tags: [] });
       saveUI();
       renderLibrary();
       window.scrollTo(0, 0);
@@ -1451,8 +1439,7 @@ const store = createStore((nextBook, info) => {
     // Redraw the same screen with the new data, keeping the scroll position.
     rerender();
   } else {
-    const s = document.getElementById('sync-text');
-    if (s) s.textContent = syncText();
+    document.querySelectorAll('.sync-text').forEach((s) => { s.textContent = syncText(); });
     if (!book) render();
   }
   if (info.updated) toast('Recipes updated');
