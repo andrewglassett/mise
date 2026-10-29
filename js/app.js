@@ -6,7 +6,7 @@ import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 import { createAccount } from './account.js';
 import {
-  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, deleteRecipe, takeShared, preparePhoto, MAX_PHOTOS,
+  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, deleteRecipe, startEdit, takeShared, preparePhoto, MAX_PHOTOS,
 } from './add.js';
 
 const app = document.getElementById('app');
@@ -69,6 +69,7 @@ function icon(name, size = 22) {
     moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    pencil: '<path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 013 3L8 18.5z"/><path d="M13.5 7l3 3"/>',
     photo: '<rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5.5l1.2-2h4.6l1.2 2"/>',
     user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   }[name];
@@ -619,6 +620,7 @@ function renderOverview(recipe) {
           <span class="eyebrow">${esc(recipe.category)}</span>
           <h1>${esc(recipe.title)}</h1>
         </div>
+        ${canEdit() ? `<a class="iconbtn" href="#/r/${encodeURIComponent(recipe.id)}/edit" aria-label="Edit recipe" title="Edit recipe">${icon('pencil')}</a>` : ''}
         <button class="iconbtn fav-btn ${fav ? 'is-fav' : ''}" data-action="favorite" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('star')}</button>
       </header>
       <div class="overview-body">
@@ -837,18 +839,24 @@ function addPreviewHTML(r) {
   const steps = allSteps(r);
   const total = r.times?.total?.text;
   return `
-    ${draft.warnings.length ? `<div class="banner banner-warn"><strong>Check before saving</strong><ul class="bullets">${draft.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+    ${draft.warnings.length ? `<div class="banner banner-warn"><strong>${draft.editing ? 'Changes to check' : 'Check before saving'}</strong><ul class="bullets">${draft.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
     <div class="add-fields">
       <label class="field"><span>Title</span><input id="add-title" value="${esc(r.title)}" autocomplete="off"></label>
       <label class="field"><span>Category</span>
         <select id="add-category">${cats.map((c) => `<option ${c === r.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
       </label>
+      <label class="field field-wide"><span>Tags</span><input id="add-tags" value="${esc((r.tags || []).join(', '))}" placeholder="Separate with commas" autocomplete="off" autocapitalize="off"></label>
     </div>
+    ${draft.editing ? `
+      <div class="edit-ask">
+        <label class="field"><span>Ask for a change</span><textarea id="add-request" rows="3" placeholder="Use 2 eggs instead of 3. Split step 4 in two. Add a note about freezing.">${esc(draft.request)}</textarea></label>
+        ${draft.error ? `<p class="banner banner-warn">${esc(draft.error)}</p>` : ''}
+        <div class="add-actions"><button class="btn" data-action="edit-ask">Make this change</button></div>
+      </div>` : ''}
     <dl class="facts">
       ${r.yield ? `<div><dt>Yield</dt><dd>${esc(r.yield)}</dd></div>` : ''}
       ${total ? `<div><dt>Total</dt><dd>${esc(total)}</dd></div>` : ''}
       <div><dt>Steps</dt><dd>${steps.length}</dd></div>
-      ${r.tags?.length ? `<div><dt>Tags</dt><dd>${r.tags.map(esc).join(', ')}</dd></div>` : ''}
       ${r.source ? `<div class="wide"><dt>Source</dt><dd>${esc(r.source)}</dd></div>` : ''}
     </dl>
     <div class="add-columns">
@@ -867,8 +875,8 @@ function addPreviewHTML(r) {
       </section>
     </div>
     <div class="add-actions">
-      <button class="btn btn-quiet" data-action="add-restart">Start over</button>
-      <button class="btn btn-primary" data-action="add-save" ${draft.phase === 'saving' ? 'disabled' : ''}>${draft.phase === 'saving' ? 'Saving…' : 'Save recipe'}</button>
+      <button class="btn btn-quiet" data-action="${draft.editing ? 'edit-cancel' : 'add-restart'}">${draft.editing ? 'Cancel' : 'Start over'}</button>
+      <button class="btn btn-primary" data-action="add-save" ${draft.phase === 'saving' ? 'disabled' : ''}>${draft.phase === 'saving' ? 'Saving…' : draft.editing ? 'Save changes' : 'Save recipe'}</button>
     </div>`;
 }
 
@@ -931,7 +939,7 @@ function renderAdd() {
   let body;
   if (!account.token()) {
     body = `
-      <p>${s.signedIn ? 'Your Google sign-in has expired.' : 'Sign in with Google to add recipes.'}</p>
+      <p>${s.signedIn ? 'Your Google sign-in has expired.' : 'Sign in with Google to add or change recipes.'}</p>
       <div class="add-actions"><button class="btn btn-primary" data-action="sign-in">Sign in</button></div>`;
   } else if (draft.phase === 'reading') {
     body = `
@@ -949,8 +957,10 @@ function renderAdd() {
   app.innerHTML = `
     <div class="add">
       <header class="topbar">
-        <a class="iconbtn" href="#/" aria-label="All recipes">${icon('back')}</a>
-        <div class="topbar-title"><h1>Add a recipe</h1></div>
+        ${draft.editing
+          ? `<a class="iconbtn" href="#/r/${encodeURIComponent(draft.editing)}" aria-label="Back to the recipe">${icon('back')}</a>`
+          : `<a class="iconbtn" href="#/" aria-label="All recipes">${icon('back')}</a>`}
+        <div class="topbar-title"><h1>${draft.editing ? 'Edit recipe' : 'Add a recipe'}</h1></div>
       </header>
       <div class="add-body panel">${body}</div>
     </div>`;
@@ -969,6 +979,7 @@ const READ_STAGES = {
     [55, 'Writing the steps…'], [75, 'Setting timers…'], [88, 'Checking it over…']],
   text: [[0, 'Reading the recipe…'], [25, 'Sorting the ingredients…'], [50, 'Writing the steps…'],
     [72, 'Setting timers…'], [88, 'Checking it over…']],
+  edit: [[0, 'Reading your change…'], [25, 'Rewriting the recipe…'], [60, 'Setting timers…'], [85, 'Checking it over…']],
   photo: [[0, 'Uploading…'], [10, 'Reading the photo…'], [35, 'Reading the ingredients…'],
     [58, 'Writing the steps…'], [76, 'Setting timers…'], [88, 'Checking it over…']],
 };
@@ -1028,16 +1039,39 @@ async function addRead() {
   addRedraw();
 }
 
+async function editAsk() {
+  if (!draft.request.trim()) {
+    draft.error = 'Say what should change first.';
+    addRedraw();
+    return;
+  }
+  draft.phase = 'reading';
+  draft.error = '';
+  addRedraw();
+  startProgress();
+  try {
+    await convertDraft(account.token());
+    await stopProgress(true);
+    draft.request = '';
+  } catch (err) {
+    await stopProgress(false);
+    draft.error = err.message;
+  }
+  draft.phase = 'preview';
+  addRedraw();
+}
+
 async function addSave() {
   draft.phase = 'saving';
   addRedraw();
   try {
     const id = await saveRecipe(account.token());
+    const saved = draft.editing ? 'Changes saved' : 'Recipe saved';
     resetDraft();
     await store.refresh();
     if (findRecipe(id)) {
       location.hash = `#/r/${encodeURIComponent(id)}`;
-      toast('Recipe saved');
+      toast(saved);
     } else {
       location.hash = '#/';
       toast('Recipe saved · it will show up in a moment');
@@ -1079,6 +1113,7 @@ function parseRoute() {
   if (parts[0] === 'r' && parts[1]) {
     if (parts[2] === 's') return { name: 'step', id: parts[1], n: parseInt(parts[3], 10) || 1 };
     if (parts[2] === 'done') return { name: 'done', id: parts[1] };
+    if (parts[2] === 'edit') return { name: 'edit', id: parts[1] };
     return { name: 'overview', id: parts[1] };
   }
   return { name: 'library' };
@@ -1099,11 +1134,16 @@ function render() {
     return;
   }
   if (route.name === 'add') {
+    if (draft.editing) resetDraft();
     const shared = takeShared(route.params);
     if (shared) history.replaceState(null, '', '#/add');
     renderAdd();
     // Shared from another app: start reading straight away.
     if (shared === 'read' && account.token()) addRead();
+  } else if (route.name === 'edit') {
+    // Keep a change in progress (say, after signing in again); otherwise start fresh.
+    if (draft.editing !== recipe.id) startEdit(recipe);
+    renderAdd();
   } else if (route.name === 'step') {
     const total = allSteps(recipe).length;
     if (!canCook(recipe) || route.n < 1 || route.n > total) {
@@ -1119,7 +1159,7 @@ function render() {
     renderLibrary();
   }
 
-  setAwake(route.name !== 'library' && route.name !== 'add');
+  setAwake(!['library', 'add', 'edit'].includes(route.name));
   const sameScreen = prev && prev.name === route.name && prev.id === route.id && prev.n === route.n;
   if (!sameScreen) window.scrollTo(0, 0);
 }
@@ -1146,6 +1186,16 @@ app.addEventListener('input', (e) => {
   }
   if (e.target.id === 'add-title') {
     draft.recipe.title = e.target.value;
+    saveDraft();
+    return;
+  }
+  if (e.target.id === 'add-tags') {
+    draft.recipe.tags = [...new Set(e.target.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))];
+    saveDraft();
+    return;
+  }
+  if (e.target.id === 'add-request') {
+    draft.request = e.target.value;
     saveDraft();
     return;
   }
@@ -1272,6 +1322,15 @@ app.addEventListener('click', (e) => {
     case 'add-save':
       if (draft.phase === 'preview') addSave();
       break;
+    case 'edit-ask':
+      editAsk();
+      break;
+    case 'edit-cancel': {
+      const id = draft.editing;
+      resetDraft();
+      location.hash = `#/r/${encodeURIComponent(id)}`;
+      break;
+    }
     case 'add-restart':
       resetDraft();
       renderAdd();

@@ -2,9 +2,9 @@
 // with Claude, and saves it to recipes.json in Google Drive. The app can't do
 // either itself, because both need keys that can't sit in a web page.
 //
-//   POST /convert  { url }, { text } or { images: [{ type, data }] }
-//                                       ->  { recipe, warnings }
-//   POST /save     { recipe }           ->  { id, modifiedTime }
+//   POST /convert  { url }, { text }, { images: [{ type, data }] }
+//                  or { edit: { recipe, request } }  ->  { recipe, warnings }
+//   POST /save     { recipe, replaceId? }            ->  { id, modifiedTime }
 //   POST /delete   { id }               ->  { id, modifiedTime }
 //
 // Both need the owner's Google sign-in from the app (Authorization: Bearer).
@@ -13,8 +13,10 @@ import { HttpError, requireOwner, readBook, writeBook } from './google.js';
 import { readPage } from './page.js';
 import { convert } from './convert.js';
 import { tidy, insert } from './recipe.js';
+import { recipeSchema } from './schema.js';
 
 const MAX_PASTE = 60_000;
+const MAX_REQUEST = 2_000;
 const MAX_PHOTOS = 4;
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
@@ -30,7 +32,32 @@ function cors(request, env) {
   } : {};
 }
 
+// The book without the recipe being edited, so its id doesn't count as taken.
+function without(book, id) {
+  return { ...book, recipes: book.recipes.filter((r) => r.id !== id) };
+}
+
+async function handleEdit({ recipe, request }, env) {
+  if (!recipe?.id || !String(request || '').trim()) throw new HttpError(400, 'Say what should change');
+  const { book } = await readBook(env);
+  const others = without(book, recipe.id);
+  const out = await convert(env, {
+    source: { kind: 'edit', recipe, request: String(request).slice(0, MAX_REQUEST) },
+    categories: book.categories,
+    existingIds: others.recipes.map((r) => r.id),
+    existingTags: [...new Set(book.recipes.flatMap((r) => r.tags || []))].sort(),
+  });
+  // Fields the conversion doesn't know about (like nutrition) come through as they were.
+  const known = Object.keys(recipeSchema([]).properties.recipe.properties);
+  const edited = { ...out.recipe, id: recipe.id };
+  for (const [k, v] of Object.entries(recipe)) {
+    if (!known.includes(k) && k !== 'times') edited[k] = v;
+  }
+  return { recipe: tidy(edited, others), warnings: out.warnings || [] };
+}
+
 async function handleConvert(body, env) {
+  if (body.edit) return handleEdit(body.edit, env);
   let source;
   if (body.url) {
     source = await readPage(String(body.url).trim());
@@ -61,9 +88,27 @@ async function handleConvert(body, env) {
 async function handleSave(body, env) {
   if (!body.recipe) throw new HttpError(400, 'Nothing to save');
   const { book, version } = await readBook(env);
-  // Checked again against the file as it is now, in case it changed.
-  const recipe = tidy(body.recipe, book);
-  const modifiedTime = await writeBook(env, insert(book, recipe), version);
+  if (!body.replaceId) {
+    // Checked again against the file as it is now, in case it changed.
+    const recipe = tidy(body.recipe, book);
+    const modifiedTime = await writeBook(env, insert(book, recipe), version);
+    return { id: recipe.id, modifiedTime };
+  }
+  // An edit keeps its id (so favorites still find it) and its place, unless
+  // it moved to another category.
+  const at = book.recipes.findIndex((r) => r.id === body.replaceId);
+  if (at === -1) throw new HttpError(404, 'That recipe isn’t in recipes.json any more');
+  const others = without(book, body.replaceId);
+  const recipe = tidy({ ...body.recipe, id: body.replaceId }, others);
+  let next;
+  if (recipe.category === book.recipes[at].category) {
+    const recipes = [...book.recipes];
+    recipes[at] = recipe;
+    next = { ...book, recipes };
+  } else {
+    next = insert(others, recipe);
+  }
+  const modifiedTime = await writeBook(env, next, version);
   return { id: recipe.id, modifiedTime };
 }
 

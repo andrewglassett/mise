@@ -45,6 +45,8 @@ export async function convert(env, { source, categories, existingIds, existingTa
       ...source.images.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.type, data: img.data } })),
       { type: 'text', text: `Here ${source.images.length > 1 ? `are ${source.images.length} photos` : 'is a photo'} of the recipe, taken or screenshotted by the cook. Read every word, handwriting too. Ignore app buttons, usernames and like counts. If the photos show only a finished dish with no recipe, say so in warnings and set status to "missingSteps".` },
     ];
+  } else if (source.kind === 'edit') {
+    content = `Here is a recipe already in Mise, as JSON:\n\n<recipe>\n${JSON.stringify(source.recipe, null, 2)}\n</recipe>\n\nThe cook asks for this change:\n\n<change>\n${source.request}\n</change>\n\nSend back the whole recipe with the change made. Change only what the request needs and keep everything else as it is, word for word. Keep the id. For any step you add, remove or reword, update its timers, temperatures and ingredientRefs, and renumber the steps. The times go in totalTime and timeParts as usual. In warnings, say in a few words what you changed; if the change can't be made or isn't clear, send the recipe back unchanged and say why.`;
   } else if (source.kind === 'paste') {
     content = `Here is the recipe, pasted in by the cook:\n\n<recipe>\n${source.content}\n</recipe>`;
   } else {

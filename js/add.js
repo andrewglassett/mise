@@ -8,9 +8,11 @@ import { CONFIG } from '../config.js';
 const DRAFT_KEY = 'mise.add.v1';
 
 function emptyDraft() {
-  // phase: input | reading | preview | saving; mode: url | text | photo
+  // phase: input | reading | preview | saving; mode: url | text | photo | edit.
+  // editing is the id of the recipe being changed, or null when adding one.
   return {
-    phase: 'input', mode: 'url', url: '', text: '', images: [], recipe: null, warnings: [], error: '',
+    phase: 'input', mode: 'url', url: '', text: '', images: [], request: '', editing: null,
+    recipe: null, warnings: [], error: '',
   };
 }
 
@@ -18,7 +20,7 @@ function load() {
   try {
     const d = { ...emptyDraft(), ...JSON.parse(sessionStorage.getItem(DRAFT_KEY)) };
     // A request that was running when the page went away is gone.
-    if (d.phase === 'reading') d.phase = 'input';
+    if (d.phase === 'reading') d.phase = d.editing ? 'preview' : 'input';
     if (d.phase === 'saving') d.phase = 'preview';
     return d;
   } catch {
@@ -66,6 +68,14 @@ export function takeShared(params) {
   return 'read';
 }
 
+/** Starts changing a saved recipe, on the same preview screen as adding one. */
+export function startEdit(recipe) {
+  Object.assign(draft, emptyDraft(), {
+    phase: 'preview', mode: 'edit', editing: recipe.id, recipe: structuredClone(recipe),
+  });
+  saveDraft();
+}
+
 export function resetDraft() {
   Object.assign(draft, emptyDraft());
   saveDraft();
@@ -107,12 +117,13 @@ async function post(path, token, body) {
   return data;
 }
 
-/** Turns the link, text or photos in the draft into draft.recipe. */
+/** Turns the link, text or photos in the draft into draft.recipe, or makes the asked-for change to it. */
 export async function convertDraft(token) {
   const body = {
     url: { url: draft.url.trim() },
     text: { text: draft.text },
     photo: { images: draft.images.map(({ type, data }) => ({ type, data })) },
+    edit: { edit: { recipe: draft.recipe, request: draft.request } },
   }[draft.mode];
   const { recipe, warnings } = await post('/convert', token, body);
   draft.recipe = recipe;
@@ -124,8 +135,8 @@ export async function deleteRecipe(token, id) {
   await post('/delete', token, { id });
 }
 
-/** Saves draft.recipe to recipes.json. Returns its final id. */
+/** Saves draft.recipe to recipes.json, in place of the original when editing. Returns its final id. */
 export async function saveRecipe(token) {
-  const { id } = await post('/save', token, { recipe: draft.recipe });
+  const { id } = await post('/save', token, { recipe: draft.recipe, replaceId: draft.editing || undefined });
   return id;
 }
