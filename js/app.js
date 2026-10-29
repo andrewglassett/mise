@@ -70,6 +70,7 @@ function icon(name, size = 22) {
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     pencil: '<path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 013 3L8 18.5z"/><path d="M13.5 7l3 3"/>',
+    down: '<path d="M6 9.5l6 6 6-6"/>',
     photo: '<rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5.5l1.2-2h4.6l1.2 2"/>',
     user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   }[name];
@@ -139,8 +140,7 @@ function themeSwitchHTML() {
 }
 
 systemDark.addEventListener('change', () => {
-  const seg = document.querySelector('.theme-seg');
-  if (!theme.mode && seg) seg.outerHTML = themeSwitchHTML();
+  if (!theme.mode) document.querySelectorAll('.theme-seg').forEach((seg) => { seg.outerHTML = themeSwitchHTML(); });
 });
 
 function findRecipe(id) {
@@ -410,15 +410,10 @@ function renderLibrary() {
           <span class="chip-sep"></span>
           ${times.map(([v, l]) => `<button class="chip ${ui.maxTime === v ? 'is-on' : ''}" data-action="time" data-time="${v}">${l}</button>`).join('')}
         </div>
-        <section class="settings" aria-label="Settings">
-          <div class="setting">
-            <h2 class="setting-label">Theme</h2>
-            ${themeSwitchHTML()}
-          </div>
-          <div id="account-box" class="setting">${accountBoxHTML()}</div>
-        </section>
+        ${settingsHTML('side')}
       </aside>
       <main class="results" id="results"></main>
+      <footer class="settings-footer">${settingsHTML('bottom')}</footer>
     </div>`;
   renderResults();
 }
@@ -443,42 +438,72 @@ function accountStatusText(s) {
   return 'Favorites and recents sync across devices';
 }
 
-function accountBoxHTML() {
+// Theme and account sit in the sidebar on wide screens and at the bottom of
+// the page on narrow ones. Both copies are drawn and CSS shows one; they share
+// one open/closed account menu.
+let accountMenuOpen = false;
+
+function settingsHTML(where) {
+  return `
+    <section class="settings" aria-label="Settings">
+      <div class="setting">${themeSwitchHTML()}</div>
+      <div class="setting account-box" data-where="${where}">${accountBoxHTML(where)}</div>
+    </section>`;
+}
+
+function accountBoxHTML(where = 'side') {
   const s = account.status;
   if (!s.enabled) return '';
-  if (!s.signedIn) {
-    return `
-      <h2 class="setting-label">Account</h2>
+  const menuId = `account-menu-${where}`;
+  // First name from Google, or the start of the email until there is one.
+  const name = s.name || s.email.split('@')[0];
+  const who = s.signedIn
+    ? `<span class="account-avatar ${s.needsReconnect ? 'needs-attention' : ''}" aria-hidden="true">${esc(name[0]?.toUpperCase() || '?')}</span>
+       <span class="account-name">${esc(name)}</span>`
+    : `<span class="account-avatar" aria-hidden="true">${icon('user', 18)}</span>
+       <span class="account-name">Sign in</span>`;
+  const menu = s.signedIn ? `
+      <p class="account-menu-email">${esc(s.email)}</p>
+      <p class="account-status">${esc(accountStatusText(s))}</p>
+      <div class="account-actions">
+        ${s.needsReconnect
+          ? '<button class="btn" data-action="sign-in">Sign in again</button>'
+          : '<button class="btn" data-action="sync-now">Sync now</button>'}
+        <button class="btn btn-quiet" data-action="sign-out">Sign out</button>
+      </div>` : `
       <p class="account-status">Sign in to keep favorites and recents the same on every device.</p>
       <div class="account-actions">
         <button class="btn" data-action="sign-in">${icon('user', 18)}Sign in with Google</button>
-      </div>
-      <a class="account-privacy" href="privacy.html">Privacy</a>`;
-  }
-  const initial = esc(s.email.trim()[0]?.toUpperCase() || '?');
+      </div>`;
   return `
-    <h2 class="setting-label">Account</h2>
-    <div class="account-who">
-      <span class="account-avatar ${s.needsReconnect ? 'needs-attention' : ''}" aria-hidden="true">${initial}</span>
-      <div>
-        <p class="account-email" title="${esc(s.email)}">${esc(s.email)}</p>
-        <p class="account-status">${esc(accountStatusText(s))}</p>
-      </div>
-    </div>
-    <div class="account-actions">
-      ${s.needsReconnect
-        ? '<button class="btn" data-action="sign-in">Sign in again</button>'
-        : '<button class="btn" data-action="sync-now">Sync now</button>'}
-      <button class="btn btn-quiet" data-action="sign-out">Sign out</button>
-    </div>
-    <a class="account-privacy" href="privacy.html">Privacy</a>`;
+    <button class="account-chip" data-action="account-menu" aria-expanded="${accountMenuOpen}" aria-controls="${menuId}">
+      ${who}${icon('down', 18)}
+    </button>
+    <div class="account-menu" id="${menuId}" ${accountMenuOpen ? '' : 'hidden'}>
+      ${menu}
+      <a class="account-privacy" href="privacy.html">Privacy</a>
+    </div>`;
 }
+
+function setAccountMenu(open) {
+  accountMenuOpen = open;
+  updateAccountUI();
+}
+
+document.addEventListener('click', (e) => {
+  // The path, not e.target.closest: opening the menu redraws the button that was clicked.
+  if (accountMenuOpen && !e.composedPath().some((n) => n.classList?.contains('account-box'))) setAccountMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (accountMenuOpen && e.key === 'Escape') setAccountMenu(false);
+});
 
 function updateAccountUI() {
   const add = document.getElementById('add-tool');
-  const box = document.getElementById('account-box');
   if (add) add.innerHTML = addToolHTML();
-  if (box) box.innerHTML = accountBoxHTML();
+  document.querySelectorAll('.account-box').forEach((box) => {
+    box.innerHTML = accountBoxHTML(box.dataset.where);
+  });
 }
 
 // Only visible in 90s mode.
@@ -1288,7 +1313,7 @@ app.addEventListener('click', (e) => {
       }
       applyTheme();
       // Just the switch: redrawing the library would lose the scroll position.
-      document.querySelector('.theme-seg').outerHTML = themeSwitchHTML();
+      document.querySelectorAll('.theme-seg').forEach((seg) => { seg.outerHTML = themeSwitchHTML(); });
       if (theme.retro && !wasRetro) toast('Welcome to Mise 95');
       break;
     }
@@ -1301,9 +1326,12 @@ app.addEventListener('click', (e) => {
     case 'sync-now':
       account.sync();
       break;
+    case 'account-menu':
+      setAccountMenu(!accountMenuOpen);
+      break;
     case 'sign-out':
       account.signOut();
-      updateAccountUI();
+      setAccountMenu(false);
       toast('Signed out · favorites stay on this device');
       break;
     case 'add-mode':

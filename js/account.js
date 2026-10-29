@@ -11,7 +11,8 @@ import { CONFIG } from '../config.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
-const SCOPE = `email ${DRIVE_SCOPE}`;
+// profile is for the first name shown on the account button.
+const SCOPE = `email profile ${DRIVE_SCOPE}`;
 const FILES = 'https://www.googleapis.com/drive/v3/files';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const FILE_NAME = 'mise-state.json';
@@ -193,9 +194,12 @@ export function createAccount({ seed, onChange, onStatus, canRedirect }) {
   }
 
   async function ensureEmail() {
-    if (acct.email && acct.emailChecked) return;
+    // Asked once per sign-in until there's a name: older sign-ins didn't include it.
+    if (acct.email && acct.emailChecked && (acct.name || acct.nameCheckedFor === acct.token)) return;
     const info = await (await api('https://www.googleapis.com/oauth2/v3/userinfo')).json();
     acct.email = info.email;
+    acct.name = info.given_name || info.name?.split(' ')[0] || '';
+    acct.nameCheckedFor = acct.token;
     acct.emailChecked = true;
     saveAccount();
     onStatus();
@@ -326,6 +330,7 @@ export function createAccount({ seed, onChange, onStatus, canRedirect }) {
         enabled,
         signedIn: Boolean(acct.email),
         email: acct.email || '',
+        name: acct.name || '',
         connected: tokenValid(),
         needsReconnect: Boolean(acct.email) && !tokenValid(),
         missingScope: Boolean(acct.missingScope),
