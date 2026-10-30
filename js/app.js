@@ -65,7 +65,7 @@ function icon(name, size = 22) {
     list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
     note: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>',
-    star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z"/>',
+    heart: '<path d="M12 20.4l-1.3-1.2C6.1 15 3 12.2 3 8.8 3 6 5.2 3.8 8 3.8c1.6 0 3.1.7 4 1.9.9-1.2 2.4-1.9 4-1.9 2.8 0 5 2.2 5 5 0 3.4-3.1 6.2-7.7 10.4L12 20.4z"/>',
     moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
@@ -300,11 +300,13 @@ function badgesHTML(r) {
 }
 
 function favMark(r) {
-  return isFavorite(r.id) ? `<span class="fav-mark" aria-label="Favorite">${icon('star', 15)}</span>` : '';
+  return isFavorite(r.id) ? `<span class="fav-mark" aria-label="Favorite">${icon('heart', 15)}</span>` : '';
 }
 
-// Cards are for the short rows on the home screen.
+// Cards are for the short rows on the home screen. The star sits over the
+// picture, outside the link, so it saves the recipe without opening it.
 function card(r, { showCategory = true } = {}) {
+  const fav = isFavorite(r.id);
   const time = timeSummary(r);
   const meta = [
     time ? `${icon('clock', 16)} ${time}` : '',
@@ -312,13 +314,16 @@ function card(r, { showCategory = true } = {}) {
   ].filter(Boolean).join('<span class="dot">·</span>');
   const badges = badgesHTML(r);
   return `
-    <a class="card" href="#/r/${encodeURIComponent(r.id)}">
-      ${artHTML(r, { variant: 'card', size: 230 })}
-      ${showCategory ? `<span class="card-cat">${esc(r.category)}</span>` : ''}
-      <span class="card-title">${favMark(r)}${esc(r.title)}</span>
-      ${meta ? `<span class="card-meta">${meta}</span>` : ''}
-      ${badges ? `<span class="card-badges">${badges}</span>` : ''}
-    </a>`;
+    <div class="card-wrap">
+      <a class="card" href="#/r/${encodeURIComponent(r.id)}">
+        ${artHTML(r, { variant: 'card', size: 230 })}
+        ${showCategory ? `<span class="card-cat">${esc(r.category)}</span>` : ''}
+        <span class="card-title">${esc(r.title)}</span>
+        ${meta ? `<span class="card-meta">${meta}</span>` : ''}
+        ${badges ? `<span class="card-badges">${badges}</span>` : ''}
+      </a>
+      <button class="card-fav ${fav ? 'is-fav' : ''}" data-action="favorite" data-id="${esc(r.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('heart', 26)}</button>
+    </div>`;
 }
 
 // Small side-by-side cards for Recent and Favorites: picture, category and
@@ -334,7 +339,7 @@ function miniCard(r) {
           <span class="mini-title">${esc(r.title)}</span>
         </span>
       </a>
-      <button class="mini-fav ${fav ? 'is-fav' : ''}" data-action="favorite" data-id="${esc(r.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('star', 20)}</button>
+      <button class="mini-fav ${fav ? 'is-fav' : ''}" data-action="favorite" data-id="${esc(r.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('heart', 22)}</button>
     </div>`;
 }
 
@@ -469,7 +474,7 @@ function accountBoxHTML(where = 'side') {
         <button class="btn" data-action="sign-in">${icon('user', 18)}Sign in with Google</button>
       </div>`;
   return `
-    <button class="account-chip" data-action="account-menu" aria-expanded="${accountMenuOpen}" aria-controls="${menuId}">
+    <button class="account-chip ${s.signedIn ? '' : 'is-quiet'}" data-action="account-menu" aria-expanded="${accountMenuOpen}" aria-controls="${menuId}">
       ${who}${icon('down', 18)}
     </button>
     <div class="account-menu" id="${menuId}" ${accountMenuOpen ? '' : 'hidden'}>
@@ -639,7 +644,7 @@ function renderOverview(recipe) {
           <h1>${esc(recipe.title)}</h1>
         </div>
         ${canEdit() ? `<a class="iconbtn" href="#/r/${encodeURIComponent(recipe.id)}/edit" aria-label="Edit recipe" title="Edit recipe">${icon('pencil')}</a>` : ''}
-        <button class="iconbtn fav-btn ${fav ? 'is-fav' : ''}" data-action="favorite" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('star')}</button>
+        <button class="iconbtn fav-btn ${fav ? 'is-fav' : ''}" data-action="favorite" aria-pressed="${fav}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${icon('heart')}</button>
       </header>
       <div class="overview-body">
         ${artHTML(recipe, { variant: 'hero', size: 560 })}

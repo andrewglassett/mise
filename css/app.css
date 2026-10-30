@@ -187,6 +187,12 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
   background: var(--surface-2); color: var(--ink); font-weight: 600; text-align: left;
 }
 .account-chip:hover { border-color: var(--muted); }
+/* Signed out, the button is there but drawn in the page's own colors, so only
+   the owner knows to tap it. */
+.account-chip.is-quiet, .account-chip.is-quiet:hover,
+[data-retro] .account-chip.is-quiet { background: none; border-color: transparent; box-shadow: none; color: transparent; }
+.account-chip.is-quiet .account-avatar, .account-chip.is-quiet > svg,
+[data-retro] .account-chip.is-quiet .account-avatar, [data-retro] .account-chip.is-quiet > svg { background: none; color: transparent; }
 .account-chip > svg { flex: none; color: var(--muted); transition: transform 0.2s ease; }
 .account-chip[aria-expanded="true"] > svg { transform: rotate(180deg); }
 .account-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -270,6 +276,14 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
 .card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 0.9rem; }
 .card-meta .dot { opacity: 0.6; }
 .card-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.card-wrap { position: relative; display: grid; }
+/* Just the heart, like the small cards' one. */
+.card-fav {
+  position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 44px; height: 44px;
+  color: #fff;
+}
+.card-fav.is-fav { color: var(--accent); }
+.card-fav.is-fav .icon { fill: currentColor; }
 
 .empty { text-align: center; padding: 60px 0; color: var(--muted); }
 
@@ -285,7 +299,7 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
   padding: 2px var(--gutter-r) 8px var(--gutter); scroll-padding-left: var(--gutter);
 }
 .shelf-row::-webkit-scrollbar { display: none; }
-.shelf-row .card { scroll-snap-align: start; }
+.shelf-row .card-wrap, .shelf-row .card-more { scroll-snap-align: start; }
 /* Recent and Favorites: picture on the left, category and name on the right */
 .shelf-compact .shelf-row { grid-auto-columns: 280px; }
 .mini {
@@ -829,7 +843,8 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 [data-retro] .card > .art-card { margin: 0 0 4px; }
 [data-retro] .mini { border: 0; box-shadow: var(--raised); }
 [data-retro] .mini-title { font: 700 1rem/1.25 var(--sans); color: #0000ee; text-decoration: underline; }
-[data-retro] .mini-fav.is-fav { color: #c00000; }
+[data-retro] .mini-fav.is-fav, [data-retro] .card-fav.is-fav { color: #c00000; }
+[data-retro] .card-fav { top: 32px; }
 [data-retro] .art { border-radius: 0; box-shadow: var(--sunken); }
 [data-retro] .card-title { font: 700 1.1rem/1.25 var(--sans); color: #0000ee; text-decoration: underline; }
 [data-retro] .card:active { transform: none; }
