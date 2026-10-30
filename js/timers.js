@@ -147,6 +147,7 @@ export function startTimer({ recipeId, recipeTitle, stepNumber, label, minSecond
     minSeconds,
     maxSeconds: Math.max(maxSeconds || minSeconds, minSeconds),
     endAt: Date.now() + minSeconds * 1000,
+    total: minSeconds,
     pausedRemaining: null,
     alerted: false,
   };
@@ -187,24 +188,26 @@ function togglePause(id) {
   render();
 }
 
-// Adds or removes a minute. On a finished timer, + starts it counting down again
-// from one minute and clears the alarm, so it can ring again.
+// Adds time. On a finished timer it starts counting down again from the added
+// time and clears the alarm, so it can ring again.
 function adjust(id, seconds) {
   const t = timers.find((x) => x.id === id);
   if (!t) return;
   unlockAudio();
   const now = Date.now();
   if (t.pausedRemaining != null) {
-    t.pausedRemaining = Math.max(0, t.pausedRemaining + seconds);
+    t.pausedRemaining += seconds;
+    t.total = (t.total || t.minSeconds) + seconds;
   } else if (remaining(t, now) <= 0) {
-    if (seconds < 0) return;
     t.endAt = now + seconds * 1000;
+    t.total = seconds;
     t.maxSeconds = t.minSeconds;
     t.alerted = false;
     t.alarmUntil = 0;
     t.rangOut = false;
   } else {
-    t.endAt = Math.max(now, t.endAt + seconds * 1000);
+    t.endAt += seconds * 1000;
+    t.total = (t.total || t.minSeconds) + seconds;
   }
   save();
   render();
@@ -280,31 +283,20 @@ function render() {
     const r = remaining(t, now);
     const paused = t.pausedRemaining != null;
     const done = r <= 0;
-    const extra = t.maxSeconds - t.minSeconds;
-    const where = t.recipeId ? `Step ${t.stepNumber}` : '';
-    let sub = t.recipeId ? `${where} · ${escapeHTML(t.recipeTitle)}` : 'Tap +1 to add a minute';
-    let clock = fmtClock(r);
-    if (done) {
-      const over = -r;
-      clock = `+${fmtClock(over)}`;
-      sub = extra > 0 && over < extra
-        ? `Check it · up to ${fmtClock(extra - over)} more`
-        : where ? `Done · ${where}` : 'Done';
-    } else if (paused) {
-      sub = t.recipeId ? `Paused · ${sub}` : 'Paused';
-    }
+    const left = done ? 0 : Math.min(1, r / (t.total || t.minSeconds));
+    const clock = done ? `+${fmtClock(-r)}` : fmtClock(r);
+    const name = t.recipeId ? `Go to step ${t.stepNumber}, ${t.label}` : t.label;
     return `
       <div class="timer ${done ? 'is-done' : ''} ${paused ? 'is-paused' : ''} ${isRinging(t, now) ? 'is-ringing' : ''}">
-        <button class="timer-main" data-timer-open="${t.id}" aria-label="${t.recipeId ? `Go to step ${t.stepNumber}` : escapeHTML(t.label)}">
+        <button class="timer-main" data-timer-open="${t.id}" aria-label="${escapeHTML(name)}">
           <span class="timer-clock">${clock}</span>
-          <span class="timer-label">${escapeHTML(t.label)}</span>
-          <span class="timer-sub">${sub}</span>
         </button>
         ${isRinging(t, now) ? `<button class="timer-stop" data-timer-silence="${t.id}">${icon('bellOff')}Stop</button>` : ''}
-        ${done ? '' : `<button class="timer-btn timer-adj" data-timer-adjust="-60" data-timer-id="${t.id}" aria-label="Remove a minute"${r <= 60 ? ' disabled' : ''}>−1</button>`}
         <button class="timer-btn timer-adj" data-timer-adjust="60" data-timer-id="${t.id}" aria-label="Add a minute">+1</button>
+        <button class="timer-btn timer-adj" data-timer-adjust="300" data-timer-id="${t.id}" aria-label="Add five minutes">+5</button>
         ${done ? '' : `<button class="timer-btn" data-timer-pause="${t.id}" aria-label="${paused ? 'Resume' : 'Pause'}">${paused ? icon('play') : icon('pause')}</button>`}
         <button class="timer-btn" data-timer-dismiss="${t.id}" aria-label="Dismiss timer">${icon('x')}</button>
+        ${done ? '' : `<span class="timer-left" style="width: ${(left * 100).toFixed(2)}%" aria-hidden="true"></span>`}
       </div>`;
   }).join('');
 }
