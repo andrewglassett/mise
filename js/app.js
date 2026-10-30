@@ -671,11 +671,7 @@ function renderOverview(recipe) {
           ${steps.length === 0 && recipe.type !== 'notes' ? '<p class="muted">This recipe has no steps yet.</p>' : ''}
           ${steps.length && !listView ? methodHTML(recipe) : ''}
         </section>
-        ${recipe.source || canEdit() ? `
-          <div class="credit">
-            ${recipe.source ? `<span>Source: ${esc(recipe.source)}</span>` : ''}
-            ${canEdit() ? deleteHTML(recipe) : ''}
-          </div>` : ''}
+        ${recipe.source ? `<div class="credit"><span>Source: ${esc(recipe.source)}</span></div>` : ''}
       </div>
       ${cook ? `
         <footer class="startbar">
@@ -691,8 +687,8 @@ function canEdit() {
   return addEnabled && account.status.signedIn;
 }
 
-function deleteHTML(recipe) {
-  if (confirmingDelete !== recipe.id) {
+function deleteHTML(id) {
+  if (confirmingDelete !== id) {
     return '<button class="linkbtn delete-btn" data-action="delete-ask">Delete recipe</button>';
   }
   return `
@@ -709,6 +705,7 @@ async function deleteCurrent(recipe, btn) {
   try {
     await deleteRecipe(account.token(), recipe.id);
     confirmingDelete = null;
+    resetDraft();
     if (isFavorite(recipe.id)) account.noteFavorite(recipe.id, false);
     ui.favorites = ui.favorites.filter((x) => x !== recipe.id);
     ui.recent = ui.recent.filter((x) => x !== recipe.id);
@@ -898,6 +895,7 @@ function addPreviewHTML(r) {
       </section>
     </div>
     <div class="add-actions">
+      ${draft.editing ? `<span class="edit-delete">${deleteHTML(draft.editing)}</span>` : ''}
       <button class="btn btn-quiet" data-action="${draft.editing ? 'edit-cancel' : 'add-restart'}">${draft.editing ? 'Cancel' : 'Start over'}</button>
       <button class="btn btn-primary" data-action="add-save" ${draft.phase === 'saving' ? 'disabled' : ''}>${draft.phase === 'saving' ? 'Saving…' : draft.editing ? 'Save changes' : 'Save recipe'}</button>
     </div>`;
@@ -1371,11 +1369,11 @@ app.addEventListener('click', (e) => {
     }
     case 'delete-ask':
       confirmingDelete = recipe.id;
-      rerender();
+      addRedraw();
       break;
     case 'delete-cancel':
       confirmingDelete = null;
-      rerender();
+      addRedraw();
       break;
     case 'delete-confirm':
       deleteCurrent(recipe, el);
