@@ -121,6 +121,8 @@ It needs sign-in (above) and the Drive setup (recipes.json in Google Drive).
 
 Recipes you add go after the others in their category, and get the drawn placeholder until you give them a photo.
 
+Signed in, you can also rename, add, remove and reorder categories (account menu → Edit categories). A renamed category keeps its recipes; a removed one asks where its recipes go.
+
 ### Sharing recipes to Mise from other apps
 
 With Add recipe set up, you can send a recipe to Mise from another app's **Share** button, such as a web page in Safari. Mise opens its Add screen with the link and starts reading it. Instagram doesn't let other apps read its posts, so sharing an Instagram post or story opens **From a photo** instead. For Instagram it's quicker to skip sharing: screenshot the recipe, then open Mise, tap **+** and choose **From a photo**.

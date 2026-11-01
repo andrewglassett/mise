@@ -140,3 +140,8 @@ export async function saveRecipe(token) {
   const { id } = await post('/save', token, { recipe: draft.recipe, replaceId: draft.editing || undefined });
   return id;
 }
+
+/** Saves the category list: { categories: [{ name, was? }], removed: [{ was, moveTo }] }. */
+export async function saveCategories(token, body) {
+  await post('/categories', token, body);
+}

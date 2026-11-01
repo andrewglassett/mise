@@ -1,12 +1,12 @@
 import { createStore } from './data.js';
 import {
-  escapeHTML as esc, fmtQty, unitLabel, scaleMeasure, timeSummary, timeLabel,
+  escapeHTML as esc, fmtQty, unitLabel, scaleMeasure, timeSummary, timeLabel, totalMinutes,
 } from './format.js';
 import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 import { createAccount } from './account.js';
 import {
-  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, deleteRecipe, startEdit, takeShared, preparePhoto, MAX_PHOTOS,
+  draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, deleteRecipe, saveCategories, startEdit, takeShared, preparePhoto, MAX_PHOTOS,
 } from './add.js';
 
 const app = document.getElementById('app');
@@ -35,7 +35,7 @@ const account = createAccount({
 
 function loadUI() {
   const defaults = {
-    q: '', category: 'All', tags: [], scale: {}, checked: {}, favorites: [], recent: [],
+    q: '', category: 'All', tags: [], sort: 'title', scale: {}, checked: {}, favorites: [], recent: [],
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem('mise.ui.v1')) };
@@ -71,6 +71,7 @@ function icon(name, size = 22) {
     plus: '<path d="M12 5v14M5 12h14"/>',
     pencil: '<path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 013 3L8 18.5z"/><path d="M13.5 7l3 3"/>',
     down: '<path d="M6 9.5l6 6 6-6"/>',
+    up: '<path d="M6 14.5l6-6 6 6"/>',
     photo: '<rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5.5l1.2-2h4.6l1.2 2"/>',
     user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   }[name];
@@ -471,7 +472,8 @@ function accountBoxHTML(where = 'side') {
           ? '<button class="btn" data-action="sign-in">Sign in again</button>'
           : '<button class="btn" data-action="sync-now">Sync now</button>'}
         <button class="btn btn-quiet" data-action="sign-out">Sign out</button>
-      </div>` : `
+      </div>
+      ${canEdit() ? '<a class="account-link" href="#/categories">Edit categories</a>' : ''}` : `
       <p class="account-status">Sign in to keep favorites and recents the same on every device.</p>
       <div class="account-actions">
         <button class="btn" data-action="sign-in">${icon('user', 18)}Sign in with Google</button>
@@ -575,6 +577,37 @@ function refreshHome() {
   }
 }
 
+// How full lists are ordered. Recipes saved before dates were kept have no
+// `added`; they count as older than any dated one, in their order in the file,
+// which is the order they were added within a category.
+const SORTS = [['title', 'A–Z'], ['newest', 'Newest'], ['oldest', 'Oldest'], ['quickest', 'Quickest']];
+
+function sortRecipes(list) {
+  const pos = new Map(book.recipes.map((r, i) => [r.id, i]));
+  const age = (a, b) => (a.added && b.added ? a.added.localeCompare(b.added) : a.added ? 1 : b.added ? -1 : pos.get(a.id) - pos.get(b.id));
+  // Recipes without a known time go last.
+  const mins = (r) => totalMinutes(r) ?? Infinity;
+  const compare = {
+    title: byTitle,
+    newest: (a, b) => age(b, a),
+    oldest: age,
+    quickest: (a, b) => mins(a) - mins(b) || byTitle(a, b),
+  }[ui.sort] || byTitle;
+  return list.sort(compare);
+}
+
+function listHeadHTML(n) {
+  return `
+    <div class="list-head">
+      <p class="result-count">${n} recipe${n === 1 ? '' : 's'}</p>
+      <label class="sort">
+        <span>Sort</span>
+        <select id="sort">${SORTS.map(([k, label]) => `<option value="${k}" ${ui.sort === k ? 'selected' : ''}>${label}</option>`).join('')}</select>
+        ${icon('down', 16)}
+      </label>
+    </div>`;
+}
+
 function renderResults() {
   const el = document.getElementById('results');
   if (!el) return;
@@ -603,7 +636,7 @@ function renderResults() {
 
   if (ui.category !== 'All') {
     const title = ui.category === FAVORITES ? 'Favorites' : ui.category;
-    el.innerHTML = `<h2 class="list-title">${esc(title)}</h2>${count}${rowsHTML(list.map(([r]) => r).sort(byTitle), { showCategory: ui.category === FAVORITES })}`;
+    el.innerHTML = `<h2 class="list-title">${esc(title)}</h2>${listHeadHTML(list.length)}${rowsHTML(sortRecipes(list.map(([r]) => r)), { showCategory: ui.category === FAVORITES })}`;
     return;
   }
 
@@ -614,10 +647,10 @@ function renderResults() {
     byCat.get(r.category).push(r);
   }
   const order = book.categories || [...byCat.keys()];
-  el.innerHTML = count + order.filter((c) => byCat.has(c)).map((c) => `
+  el.innerHTML = listHeadHTML(list.length) + order.filter((c) => byCat.has(c)).map((c) => `
     <section class="cat-section">
       <h2>${esc(c)}</h2>
-      ${rowsHTML(byCat.get(c).sort(byTitle))}
+      ${rowsHTML(sortRecipes(byCat.get(c)))}
     </section>`).join('');
 }
 
@@ -865,7 +898,7 @@ function addPreviewHTML(r) {
     ${draft.warnings.length ? `<div class="banner banner-warn"><strong>${draft.editing ? 'Changes to check' : 'Check before saving'}</strong><ul class="bullets">${draft.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
     <div class="add-fields">
       <label class="field"><span>Title</span><input id="add-title" value="${esc(r.title)}" autocomplete="off"></label>
-      <label class="field"><span>Category</span>
+      <label class="field"><span class="field-head">Category <a class="field-link" href="#/categories">Edit categories</a></span>
         <select id="add-category">${cats.map((c) => `<option ${c === r.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
       </label>
       <label class="field field-wide"><span>Tags</span><input id="add-tags" value="${esc((r.tags || []).join(', '))}" placeholder="Separate with commas" autocomplete="off" autocapitalize="off"></label>
@@ -1107,6 +1140,124 @@ async function addSave() {
   }
 }
 
+// ---------- categories ----------
+
+// The categories screen changes a copy of the list; nothing is saved until
+// Save. Rows are never taken out, only marked removed, so a removed
+// category's moveTo (a row index) keeps pointing at the right row.
+let catEdit = null;
+
+function startCategories(back) {
+  const counts = {};
+  for (const r of book.recipes) counts[r.category] = (counts[r.category] || 0) + 1;
+  catEdit = {
+    back,
+    rows: (book.categories || []).map((c) => ({ name: c, was: c, count: counts[c] || 0, removed: false, moveTo: null })),
+    saving: false,
+  };
+}
+
+function liveRows() {
+  return catEdit.rows.map((row, i) => [row, i]).filter(([row]) => !row.removed);
+}
+
+function categoryRowHTML(row, i, at, live) {
+  const count = row.count ? `${row.count} recipe${row.count === 1 ? '' : 's'}` : 'Empty';
+  return `
+    <li class="cat-row">
+      <span class="cat-field">
+        <input class="cat-name" data-row="${i}" value="${esc(row.name)}" maxlength="40" placeholder="Category name" aria-label="Category name" autocomplete="off">
+        <span class="cat-count">${count}</span>
+      </span>
+      <span class="cat-tools">
+        <button class="iconbtn" data-action="cat-move" data-row="${i}" data-dir="-1" aria-label="Move up" ${at === 0 ? 'disabled' : ''}>${icon('up', 20)}</button>
+        <button class="iconbtn" data-action="cat-move" data-row="${i}" data-dir="1" aria-label="Move down" ${at === live.length - 1 ? 'disabled' : ''}>${icon('down', 20)}</button>
+        <button class="iconbtn" data-action="cat-remove" data-row="${i}" aria-label="Remove category" ${live.length === 1 ? 'disabled' : ''}>${icon('x', 20)}</button>
+      </span>
+    </li>`;
+}
+
+// A removed category with recipes asks where they go.
+function removedRowHTML(row, i, live) {
+  if (!live.some(([, j]) => j === row.moveTo)) row.moveTo = live[0][1];
+  const recipes = `${row.count} recipe${row.count === 1 ? '' : 's'}`;
+  return `
+    <li class="cat-row is-removed">
+      <span class="cat-gone">${row.count
+        ? `Removing <strong>${esc(row.was)}</strong>. Move its ${recipes} to`
+        : `Removing <strong>${esc(row.was)}</strong>`}</span>
+      ${row.count ? `<select class="cat-move-to" data-row="${i}" aria-label="Move its recipes to">
+        ${live.map(([r, j]) => `<option value="${j}" ${j === row.moveTo ? 'selected' : ''}>${esc(r.name.trim() || 'New category')}</option>`).join('')}
+      </select>` : ''}
+      <button class="linkbtn" data-action="cat-undo" data-row="${i}">Undo</button>
+    </li>`;
+}
+
+function renderCategories() {
+  document.body.dataset.view = 'add';
+  let body;
+  if (!account.token()) {
+    body = `
+      <p>${account.status.signedIn ? 'Your Google sign-in has expired.' : 'Sign in with Google to change categories.'}</p>
+      <div class="add-actions"><button class="btn btn-primary" data-action="sign-in">Sign in</button></div>`;
+  } else {
+    const live = liveRows();
+    const gone = catEdit.rows.map((row, i) => [row, i]).filter(([row]) => row.removed && row.was);
+    body = `
+      <p class="muted">Renaming a category moves its recipes with it. The order here is the order on the home screen.</p>
+      <ul class="cat-list">${live.map(([row, i], at) => categoryRowHTML(row, i, at, live)).join('')}</ul>
+      <div><button class="linkbtn cat-add" data-action="cat-add">${icon('plus', 18)} Add a category</button></div>
+      ${gone.length ? `<ul class="cat-list">${gone.map(([row, i]) => removedRowHTML(row, i, live)).join('')}</ul>` : ''}
+      <div class="add-actions">
+        <a class="btn btn-quiet" href="${catEdit.back}">Cancel</a>
+        <button class="btn btn-primary" data-action="cat-save" ${catEdit.saving ? 'disabled' : ''}>${catEdit.saving ? 'Saving…' : 'Save categories'}</button>
+      </div>`;
+  }
+  app.innerHTML = `
+    <div class="add">
+      <header class="topbar">
+        <a class="iconbtn" href="${catEdit.back}" aria-label="Back">${icon('back')}</a>
+        <div class="topbar-title"><h1>Categories</h1></div>
+      </header>
+      <div class="add-body panel">${body}</div>
+    </div>`;
+}
+
+async function categoriesSave() {
+  const live = liveRows().map(([row]) => row);
+  const body = {
+    categories: live.map((row) => ({ name: row.name.trim(), was: row.was ?? undefined })),
+    removed: catEdit.rows.filter((row) => row.removed && row.was && row.count)
+      .map((row) => ({ was: row.was, moveTo: catEdit.rows[row.moveTo].name.trim() })),
+  };
+  // Where each old name ends up, to keep the open filter and edit pointing at it.
+  const moved = new Map([
+    ...live.filter((row) => row.was).map((row) => [row.was, row.name.trim()]),
+    ...body.removed.map((r) => [r.was, r.moveTo]),
+  ]);
+  catEdit.saving = true;
+  renderCategories();
+  try {
+    await saveCategories(account.token(), body);
+    if (moved.has(ui.category)) ui.category = moved.get(ui.category);
+    else if (ui.category !== 'All' && ui.category !== FAVORITES) ui.category = 'All';
+    saveUI();
+    if (draft.recipe && moved.has(draft.recipe.category)) {
+      draft.recipe.category = moved.get(draft.recipe.category);
+      saveDraft();
+    }
+    const { back } = catEdit;
+    catEdit = null;
+    await store.refresh();
+    location.hash = back;
+    toast('Categories saved');
+  } catch (err) {
+    catEdit.saving = false;
+    renderCategories();
+    toast(`Couldn’t save: ${err.message}`);
+  }
+}
+
 // ---------- screen wake lock (keeps the iPad awake while cooking) ----------
 
 let wakeLock = null;
@@ -1133,6 +1284,7 @@ function parseRoute() {
   const raw = location.hash.replace(/^#\/?/, '');
   // #/add, or #/add?url=… when a link is shared to Mise.
   if (/^add(\?|$)/.test(raw)) return { name: 'add', params: new URLSearchParams(raw.slice(4)) };
+  if (raw === 'categories') return { name: 'categories' };
   const parts = raw.split('/').map(decodeURIComponent);
   if (parts[0] === 'r' && parts[1]) {
     if (parts[2] === 's') return { name: 'step', id: parts[1], n: parseInt(parts[3], 10) || 1 };
@@ -1168,6 +1320,13 @@ function render() {
     // Keep a change in progress (say, after signing in again); otherwise start fresh.
     if (draft.editing !== recipe.id) startEdit(recipe);
     renderAdd();
+  } else if (route.name === 'categories') {
+    accountMenuOpen = false;
+    // Back goes to the recipe being edited, if that's where this was opened from.
+    if (prev?.name !== 'categories' || !catEdit) {
+      startCategories(prev?.name === 'edit' ? `#/r/${encodeURIComponent(prev.id)}/edit` : '#/');
+    }
+    renderCategories();
   } else if (route.name === 'step') {
     const total = allSteps(recipe).length;
     if (!canCook(recipe) || route.n < 1 || route.n > total) {
@@ -1183,7 +1342,7 @@ function render() {
     renderLibrary();
   }
 
-  setAwake(!['library', 'add', 'edit'].includes(route.name));
+  setAwake(!['library', 'add', 'edit', 'categories'].includes(route.name));
   const sameScreen = prev && prev.name === route.name && prev.id === route.id && prev.n === route.n;
   if (!sameScreen) window.scrollTo(0, 0);
 }
@@ -1218,6 +1377,10 @@ app.addEventListener('input', (e) => {
     saveDraft();
     return;
   }
+  if (e.target.classList.contains('cat-name')) {
+    catEdit.rows[Number(e.target.dataset.row)].name = e.target.value;
+    return;
+  }
   if (e.target.id === 'add-request') {
     draft.request = e.target.value;
     saveDraft();
@@ -1238,6 +1401,16 @@ app.addEventListener('keydown', (e) => {
 app.addEventListener('change', (e) => {
   if (e.target.id === 'add-photo-input') {
     addPhotos(e.target.files);
+    return;
+  }
+  if (e.target.classList.contains('cat-move-to')) {
+    catEdit.rows[Number(e.target.dataset.row)].moveTo = Number(e.target.value);
+    return;
+  }
+  if (e.target.id === 'sort') {
+    ui.sort = e.target.value;
+    saveUI();
+    renderResults();
     return;
   }
   if (e.target.id !== 'add-category') return;
@@ -1353,6 +1526,40 @@ app.addEventListener('click', (e) => {
       location.hash = `#/r/${encodeURIComponent(id)}`;
       break;
     }
+    case 'cat-add':
+      catEdit.rows.push({ name: '', was: null, count: 0, removed: false, moveTo: null });
+      renderCategories();
+      [...app.querySelectorAll('.cat-name')].at(-1).focus();
+      break;
+    case 'cat-move': {
+      const live = liveRows().map(([, i]) => i);
+      const at = live.indexOf(Number(el.dataset.row));
+      const other = live[at + Number(el.dataset.dir)];
+      if (other == null) break;
+      const { rows } = catEdit;
+      [rows[live[at]], rows[other]] = [rows[other], rows[live[at]]];
+      // Removed rows point at rows by index, so follow the swap.
+      for (const row of rows) {
+        if (row.moveTo === live[at]) row.moveTo = other;
+        else if (row.moveTo === other) row.moveTo = live[at];
+      }
+      renderCategories();
+      app.querySelector(`[data-action="cat-move"][data-row="${other}"][data-dir="${el.dataset.dir}"]`)?.focus();
+      break;
+    }
+    case 'cat-remove': {
+      const row = catEdit.rows[Number(el.dataset.row)];
+      row.removed = true;
+      renderCategories();
+      break;
+    }
+    case 'cat-undo':
+      catEdit.rows[Number(el.dataset.row)].removed = false;
+      renderCategories();
+      break;
+    case 'cat-save':
+      if (!catEdit.saving) categoriesSave();
+      break;
     case 'add-restart':
       resetDraft();
       renderAdd();

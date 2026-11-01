@@ -40,6 +40,7 @@ Only a few fields are required. The rest make cook mode better: timers, preheat 
 | `methodSource` | no | Set to `"suggested"` when the method isn't from the original recipe. The app shows an "Untested method" badge. |
 | `nutrition` | no | Free text. |
 | `image` | no | A photo for the recipe; see [Images](#images). Without one, the app draws a placeholder in the category's colour. |
+| `added` | no | When the recipe was added, as an ISO date like `"2026-11-01T18:30:00Z"`. The app sets it when you add a recipe, and uses it for the Newest and Oldest sorts. Recipes without one sort as older, in file order. |
 
 ## Times
 

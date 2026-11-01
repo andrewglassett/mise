@@ -1,3 +1,5 @@
+import { HttpError } from './google.js';
+
 // Checks a converted recipe and fixes what can be fixed safely, so a small
 // slip in the conversion never stops the app from reading recipes.json.
 
@@ -95,4 +97,45 @@ export function insert(book, recipe) {
   const recipes = [...book.recipes];
   recipes.splice(at === -1 ? recipes.length : at, 0, recipe);
   return { ...book, recipes };
+}
+
+const MAX_CATEGORY = 40;
+
+/**
+ * Renames, adds, removes and reorders categories: { categories: [{ name, was? }],
+ * removed: [{ was, moveTo }] }. `was` is a category's name in the file, so its
+ * recipes follow it when it's renamed; a removed category's recipes move to
+ * `moveTo`. Returns the book with its recipes re-sorted into the new order.
+ */
+export function recategorize(book, body) {
+  const current = book.categories || [];
+  const rows = Array.isArray(body.categories) ? body.categories : [];
+  const removed = Array.isArray(body.removed) ? body.removed : [];
+  const names = rows.map((c) => String(c?.name || '').trim());
+  if (!names.length) throw new HttpError(400, 'Keep at least one category');
+  if (names.some((n) => !n || n.length > MAX_CATEGORY)) {
+    throw new HttpError(400, `Each category needs a name of up to ${MAX_CATEGORY} characters`);
+  }
+  if (new Set(names.map((n) => n.toLowerCase())).size !== names.length) {
+    throw new HttpError(400, 'Two categories have the same name');
+  }
+  const rename = new Map();
+  rows.forEach((c, i) => { if (c.was != null) rename.set(c.was, names[i]); });
+  for (const r of removed) {
+    if (!names.includes(r?.moveTo)) throw new HttpError(400, `Choose where the recipes in “${r?.was}” go`);
+    rename.set(r.was, r.moveTo);
+  }
+  // Checked against the file as it is now: each old category is used once,
+  // only ones that exist can change, and every one with recipes lands somewhere.
+  const used = new Set(book.recipes.map((r) => r.category));
+  const stale = rename.size !== rows.filter((c) => c.was != null).length + removed.length
+    || [...rename.keys()].some((c) => !current.includes(c))
+    || current.some((c) => used.has(c) && !rename.has(c));
+  if (stale) throw new HttpError(409, 'The categories changed since you opened this. Reload and try again.');
+
+  const rank = (c) => (names.includes(c) ? names.indexOf(c) : names.length);
+  const recipes = book.recipes
+    .map((r) => (rename.has(r.category) ? { ...r, category: rename.get(r.category) } : r))
+    .sort((a, b) => rank(a.category) - rank(b.category));
+  return { ...book, categories: names, recipes };
 }

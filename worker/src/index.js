@@ -6,13 +6,15 @@
 //                  or { edit: { recipe, request } }  ->  { recipe, warnings }
 //   POST /save     { recipe, replaceId? }            ->  { id, modifiedTime }
 //   POST /delete   { id }               ->  { id, modifiedTime }
+//   POST /categories { categories: [{ name, was? }], removed: [{ was, moveTo }] }
+//                                       ->  { categories, modifiedTime }
 //
 // Both need the owner's Google sign-in from the app (Authorization: Bearer).
 
 import { HttpError, requireOwner, readBook, writeBook } from './google.js';
 import { readPage } from './page.js';
 import { convert } from './convert.js';
-import { tidy, insert } from './recipe.js';
+import { tidy, insert, recategorize } from './recipe.js';
 import { recipeSchema } from './schema.js';
 
 const MAX_PASTE = 60_000;
@@ -90,7 +92,7 @@ async function handleSave(body, env) {
   const { book, version } = await readBook(env);
   if (!body.replaceId) {
     // Checked again against the file as it is now, in case it changed.
-    const recipe = tidy(body.recipe, book);
+    const recipe = { ...tidy(body.recipe, book), added: new Date().toISOString() };
     const modifiedTime = await writeBook(env, insert(book, recipe), version);
     return { id: recipe.id, modifiedTime };
   }
@@ -100,6 +102,7 @@ async function handleSave(body, env) {
   if (at === -1) throw new HttpError(404, 'That recipe isn’t in recipes.json any more');
   const others = without(book, body.replaceId);
   const recipe = tidy({ ...body.recipe, id: body.replaceId }, others);
+  if (book.recipes[at].added) recipe.added = book.recipes[at].added;
   let next;
   if (recipe.category === book.recipes[at].category) {
     const recipes = [...book.recipes];
@@ -120,6 +123,13 @@ async function handleDelete(body, env) {
   return { id: body.id, modifiedTime };
 }
 
+async function handleCategories(body, env) {
+  const { book, version } = await readBook(env);
+  const next = recategorize(book, body);
+  const modifiedTime = await writeBook(env, next, version);
+  return { categories: next.categories, modifiedTime };
+}
+
 export default {
   async fetch(request, env) {
     const headers = cors(request, env);
@@ -127,7 +137,7 @@ export default {
     const json = (data, status = 200) => Response.json(data, { status, headers });
 
     const { pathname } = new URL(request.url);
-    const route = { '/convert': handleConvert, '/save': handleSave, '/delete': handleDelete }[pathname];
+    const route = { '/convert': handleConvert, '/save': handleSave, '/delete': handleDelete, '/categories': handleCategories }[pathname];
     if (!route || request.method !== 'POST') return json({ error: 'Not found' }, 404);
 
     try {
