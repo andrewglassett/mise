@@ -234,11 +234,13 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
 .search input::-webkit-search-cancel-button { display: none; }
 .search-clear { display: grid; place-items: center; width: 40px; height: 40px; }
 
-.cats {
+/* On phones, categories and tags are each one row that scrolls sideways, edge to edge. */
+.cats, .chips {
   display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
   margin: 0 calc(var(--gutter-r) * -1) 0 calc(var(--gutter) * -1); padding: 0 var(--gutter-r) 0 var(--gutter);
 }
-.cats::-webkit-scrollbar { display: none; }
+.cats::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+.cats + .chips { margin-top: -6px; }
 .cat {
   display: flex; align-items: center; gap: 8px; flex: none; min-height: 44px;
   padding: 0 16px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line);
@@ -248,9 +250,8 @@ h1, h2, h3, h4 { margin: 0; line-height: 1.2; }
 .cat.is-on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .cat.is-on .count { color: inherit; opacity: 0.7; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .chip {
-  min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 0.9rem; font-weight: 600;
+  flex: none; white-space: nowrap; min-height: 36px; padding: 0 14px; border-radius: 999px; font-size: 0.9rem; font-weight: 600;
   border: 1px solid var(--line); color: var(--muted);
 }
 .chip.is-on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
@@ -701,6 +702,7 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
   }
   .sync { text-align: left; }
   .cats { flex-direction: column; overflow: visible; margin: 0; padding: 0; gap: 2px; }
+  .chips, .cats + .chips { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
   .cat { justify-content: space-between; background: none; border-color: transparent; border-radius: 12px; min-height: 46px; }
   .results { padding-top: calc(env(safe-area-inset-top) + 24px); padding-left: 28px; padding-bottom: calc(var(--bottom) + 120px); }
   .filters .settings { display: grid; }

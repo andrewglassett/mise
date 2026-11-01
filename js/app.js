@@ -382,6 +382,8 @@ function renderLibrary() {
   const counts = { All: book.recipes.length };
   for (const r of book.recipes) counts[r.category] = (counts[r.category] || 0) + 1;
   const cats = ['All', ...(book.categories || [...new Set(book.recipes.map((r) => r.category))])];
+  // On phones the category and tag rows scroll sideways; keep them where they were.
+  const scrolled = ['.cats', '.chips'].map((s) => document.querySelector(`.filters ${s}`)?.scrollLeft || 0);
 
   app.innerHTML = `
     <div class="library">
@@ -412,6 +414,7 @@ function renderLibrary() {
       <main class="results" id="results"></main>
       <footer class="settings-footer">${settingsHTML('bottom')}</footer>
     </div>`;
+  ['.cats', '.chips'].forEach((s, i) => { app.querySelector(`.filters ${s}`).scrollLeft = scrolled[i]; });
   renderResults();
 }
 
