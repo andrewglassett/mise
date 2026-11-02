@@ -82,7 +82,8 @@ export function recipeSchema(categories) {
           title: str,
           category: { type: 'string', enum: categories },
           type: { type: 'string', enum: ['recipe', 'notes'] },
-          source: str,
+          author: str,
+          url: str,
           yield: str,
           // The other parts of times (prep, bake…) as a list; tidy() turns
           // them back into the times object.

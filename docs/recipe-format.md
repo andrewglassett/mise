@@ -28,7 +28,9 @@ Only a few fields are required. The rest make cook mode better: timers, preheat 
 | `title` | yes | |
 | `category` | yes | One of `categories`. |
 | `tags` | no | Free-form labels, like `vegan`, `sourdough` or `weeknight`. Each one becomes a filter chip. |
-| `source` | no | Author, website or "Grandma's card". |
+| `author` | no | Who wrote it, like `"Maurizio Leo, The Perfect Loaf"` or `"@handle"`. Shown on the recipe as "By …"; leave it out and nothing shows. |
+| `url` | no | The original recipe's web address. The author becomes a link to it. |
+| `source` | no | Where the recipe came from, like "Grandma's card". A note for you; the app doesn't show it. |
 | `yield` | no | Free text: "Serves 4", "Makes 12". |
 | `times` | no | Keys like `prep`, `cook`, `bake`, `proof`, `rest`, `total`. Each is `{ "text": "1 hr 20 min", "minutes": 80 }`. Always include `total` when you include any times; see [Times](#times). |
 | `equipment` | no | List of strings. |

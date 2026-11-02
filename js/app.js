@@ -282,7 +282,7 @@ function searchScore(r, q) {
     else if (title.includes(w)) score += 6;
     else if ((r.tags || []).some((t) => t.includes(w))) score += 4;
     else if (r.ingredientGroups?.some((g) => g.items.some((i) => (i.item || i.raw).toLowerCase().includes(w)))) score += 2;
-    else if ((r.source || '').toLowerCase().includes(w)) score += 1;
+    else if ((r.author || '').toLowerCase().includes(w)) score += 1;
     else return 0;
   }
   return score;
@@ -707,7 +707,7 @@ function renderOverview(recipe) {
           ${steps.length === 0 && recipe.type !== 'notes' ? '<p class="muted">This recipe has no steps yet.</p>' : ''}
           ${steps.length && !listView ? methodHTML(recipe) : ''}
         </section>
-        ${recipe.source ? `<div class="credit"><span>Source: ${esc(recipe.source)}</span></div>` : ''}
+        ${creditHTML(recipe)}
       </div>
       ${cook ? `
         <footer class="startbar">
@@ -754,6 +754,17 @@ async function deleteCurrent(recipe, btn) {
     btn.textContent = 'Delete';
     toast(`Couldn’t delete: ${err.message}`);
   }
+}
+
+// "By" the author, linked to the original recipe when there's a link. With a
+// link and no author, the site's name stands in.
+function creditHTML(recipe) {
+  let site = '';
+  try { site = new URL(recipe.url).hostname.replace(/^www\./, ''); } catch { /* no link */ }
+  const name = recipe.author ? `By ${esc(recipe.author)}` : esc(site);
+  if (!name) return '';
+  const text = site ? `<a class="credit-link" href="${esc(recipe.url)}" target="_blank" rel="noopener">${name}</a>` : name;
+  return `<div class="credit"><span>${text}</span></div>`;
 }
 
 // The whole method as a numbered list. For short recipes it's the main way to
@@ -903,6 +914,10 @@ function addPreviewHTML(r) {
       </label>
       <label class="field field-wide"><span>Tags</span><input id="add-tags" value="${esc((r.tags || []).join(', '))}" placeholder="Separate with commas" autocomplete="off" autocapitalize="off"></label>
     </div>
+    <div class="add-fields add-fields-even">
+      <label class="field"><span>Author</span><input id="add-author" value="${esc(r.author || '')}" placeholder="Who wrote it" autocomplete="off"></label>
+      <label class="field"><span>Link</span><input id="add-link" type="url" inputmode="url" value="${esc(r.url || '')}" placeholder="https://" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    </div>
     ${draft.editing ? `
       <div class="edit-ask">
         <label class="field"><span>Ask for a change</span><textarea id="add-request" rows="3" placeholder="Use 2 eggs instead of 3. Split step 4 in two. Add a note about freezing.">${esc(draft.request)}</textarea></label>
@@ -913,7 +928,6 @@ function addPreviewHTML(r) {
       ${r.yield ? `<div><dt>Yield</dt><dd>${esc(r.yield)}</dd></div>` : ''}
       ${total ? `<div><dt>Total</dt><dd>${esc(total)}</dd></div>` : ''}
       <div><dt>Steps</dt><dd>${steps.length}</dd></div>
-      ${r.source ? `<div class="wide"><dt>Source</dt><dd>${esc(r.source)}</dd></div>` : ''}
     </dl>
     <div class="add-columns">
       <section>
@@ -1369,6 +1383,11 @@ app.addEventListener('input', (e) => {
   }
   if (e.target.id === 'add-title') {
     draft.recipe.title = e.target.value;
+    saveDraft();
+    return;
+  }
+  if (e.target.id === 'add-author' || e.target.id === 'add-link') {
+    draft.recipe[e.target.id === 'add-author' ? 'author' : 'url'] = e.target.value;
     saveDraft();
     return;
   }

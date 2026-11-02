@@ -82,7 +82,8 @@ async function handleConvert(body, env) {
     existingIds: book.recipes.map((r) => r.id),
     existingTags: [...new Set(book.recipes.flatMap((r) => r.tags || []))].sort(),
   });
-  const recipe = tidy(out.recipe, book);
+  // A recipe read from a link keeps that link.
+  const recipe = tidy({ ...out.recipe, url: source.url || out.recipe.url }, book);
   console.log('converted', recipe.id, JSON.stringify(out.usage));
   return { recipe, warnings: out.warnings || [] };
 }

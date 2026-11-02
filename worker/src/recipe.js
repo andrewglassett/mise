@@ -28,6 +28,17 @@ export function uniqueId(id, taken) {
   return next;
 }
 
+// "example.com/x" becomes "https://example.com/x"; anything that isn't a web address is dropped.
+function webAddress(s) {
+  const text = s.trim();
+  try {
+    const url = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`);
+    return url.hostname.includes('.') ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function dropEmpty(obj) {
   for (const [k, v] of Object.entries(obj)) {
     if (v === '' || v == null || (Array.isArray(v) && !v.length)) delete obj[k];
@@ -85,6 +96,8 @@ export function tidy(input, book) {
     for (const [k, t] of Object.entries(r.times)) if (!t?.text?.trim()) delete r.times[k];
     if (!Object.keys(r.times).length) delete r.times;
   }
+  if (r.author) r.author = r.author.trim();
+  if (r.url) r.url = webAddress(r.url);
   if (r.tags) r.tags = [...new Set(r.tags.map((t) => t.toLowerCase().trim()).filter(Boolean))];
   return dropEmpty(r);
 }

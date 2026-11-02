@@ -8,7 +8,8 @@ const RULES = `You convert one recipe into Mise's recipe format. The format docu
 Faithfulness
 - Keep the author's quantities, temperatures, times and method. Never invent an amount. Lightly tighten wording so each step reads well on one screen, but don't change what it says.
 - If something is missing or cut off (an amount, a step, a time), keep what's there, set status to "partial" or "missingSteps", and say what's missing in warnings. If there's no method at all, you may write one, but then set methodSource to "suggested" and status "missingSteps".
-- Put the credit in source: the author and site, like "Maurizio Leo, The Perfect Loaf (theperfectloaf.com)", or "@handle on Instagram" for a post or screenshot that shows one.
+- author: who wrote the recipe, with the publication or site after a comma when there is one, like "Maurizio Leo, The Perfect Loaf", or "@handle" for a social post that shows one. Leave it out when no author is shown; never guess one.
+- url: the recipe's web address, only when the recipe shows one in full. Leave it out otherwise.
 - Put tips, make-ahead and storage notes in notes. Leave out life stories, ads and reviews.
 
 Fields
