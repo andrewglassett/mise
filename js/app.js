@@ -6,6 +6,9 @@ import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 import { createAccount } from './account.js';
 import {
+  SECTIONS, isStaple, amountText, liveItems, onList, addItem, updateItem, removeItems, removeRecipe,
+} from './shopping.js';
+import {
   draft, saveDraft, resetDraft, addEnabled, convertDraft, saveRecipe, deleteRecipe, saveCategories, startEdit, takeShared, preparePhoto, MAX_PHOTOS,
 } from './add.js';
 
@@ -73,6 +76,7 @@ function icon(name, size = 22) {
     down: '<path d="M6 9.5l6 6 6-6"/>',
     up: '<path d="M6 14.5l6-6 6 6"/>',
     photo: '<rect x="3.5" y="5.5" width="17" height="14" rx="2.5"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5.5l1.2-2h4.6l1.2 2"/>',
+    bag: '<path d="M5.5 8h13l-1 12.5h-11z"/><path d="M9 10.5V7a3 3 0 0 1 6 0v3.5"/>',
     user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
   }[name];
   return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -393,6 +397,7 @@ function renderLibrary() {
           <h1><button class="brand-home" data-action="home" title="Show all recipes">Mise</button></h1>
           <div class="brand-tools">
             <button class="tool" data-action="quick-timer" title="Start a 5-minute timer" aria-label="Start a 5-minute timer">${icon('timer', 20)}</button>
+            <span id="shop-tool">${shopToolHTML()}</span>
             <span id="add-tool">${addToolHTML()}</span>
           </div>
         </div>
@@ -425,6 +430,13 @@ function renderLibrary() {
 function addToolHTML() {
   if (!addEnabled || !account.status.signedIn) return '';
   return `<a class="tool" href="#/add" title="Add a recipe" aria-label="Add a recipe">${icon('plus', 20)}</a>`;
+}
+
+// The bag in the header, with how many things are left to buy.
+function shopToolHTML() {
+  if (!account.status.signedIn) return '';
+  const left = liveItems(account.shopping).filter((i) => !i.checked).length;
+  return `<a class="tool" href="#/shopping" title="Shopping list" aria-label="Shopping list${left ? `, ${left} to buy` : ''}">${icon('bag', 20)}${left ? `<span class="tool-count">${left}</span>` : ''}</a>`;
 }
 
 function accountStatusText(s) {
@@ -504,6 +516,8 @@ document.addEventListener('keydown', (e) => {
 function updateAccountUI() {
   const add = document.getElementById('add-tool');
   if (add) add.innerHTML = addToolHTML();
+  const shop = document.getElementById('shop-tool');
+  if (shop) shop.innerHTML = shopToolHTML();
   document.querySelectorAll('.account-box').forEach((box) => {
     box.innerHTML = accountBoxHTML(box.dataset.where);
   });
@@ -691,6 +705,7 @@ function renderOverview(recipe) {
           </div>
           ${checked ? `<button class="linkbtn" data-action="uncheck-all">Uncheck all (${checked})</button>` : ''}
           ${ingredientGroupsHTML(recipe)}
+          ${account.status.signedIn && recipe.ingredientGroups?.length ? `<button class="btn shop-add" data-action="shop-pick">${icon('bag', 18)} Add to shopping list</button>` : ''}
         </section>
         <section class="panel info-panel">
           ${recipe.methodSource === 'suggested' ? '<p class="banner banner-warn">Untested method: this is a typical method, not the original author\'s.</p>' : ''}
@@ -713,7 +728,153 @@ function renderOverview(recipe) {
         <footer class="startbar">
           <a class="btn btn-primary btn-big" href="#/r/${encodeURIComponent(recipe.id)}/s/1">Start cooking ${icon('next')}</a>
         </footer>` : ''}
+      ${shopPick?.recipeId === recipe.id ? shopPickHTML(recipe) : ''}
     </div>`;
+}
+
+// ---------- shopping list ----------
+
+// Choosing which of a recipe's ingredients to add: { recipeId, picked: Set of ingredient ids }.
+let shopPick = null;
+// The item whose section and remove buttons are open on the list.
+let shopEditing = null;
+let shopText = '';
+
+function recipeIngredients(recipe) {
+  return (recipe.ingredientGroups || []).flatMap((g) => g.items);
+}
+
+// Things you usually have and things already on the list start unticked.
+function startShopPick(recipe) {
+  const list = account.shopping;
+  const picked = recipeIngredients(recipe)
+    .filter((i) => !isStaple(i.item || i.raw) && !onList(list, i.item || i.raw, recipe.id))
+    .map((i) => i.id);
+  shopPick = { recipeId: recipe.id, picked: new Set(picked) };
+}
+
+function shopPickHTML(recipe) {
+  const list = account.shopping;
+  const n = shopPick.picked.size;
+  const scale = scaleFor(recipe.id);
+  return `
+    <div class="sheet-backdrop" data-action="shop-pick-cancel"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-head">
+        <h2 id="sheet-title">Add to shopping list</h2>
+        <p class="muted">Untick what you already have.${scale !== 1 ? ` Amounts are for ${fmtQty(scale)}×.` : ''}</p>
+      </div>
+      <ul class="ing-list sheet-list">
+        ${recipeIngredients(recipe).map((ing) => {
+          const on = shopPick.picked.has(ing.id);
+          const note = onList(list, ing.item || ing.raw, recipe.id) ? '<span class="pill pill-quiet">On your list</span>' : '';
+          return `
+            <li>
+              <button class="ing ${on ? 'is-checked' : ''}" data-action="shop-pick-toggle" data-ing="${esc(ing.id)}" aria-pressed="${on}">
+                <span class="ing-box">${icon('check', 16)}</span>
+                <span class="ing-text">${ingredientLine(ing, scale)} ${note}</span>
+              </button>
+            </li>`;
+        }).join('')}
+      </ul>
+      <div class="sheet-actions">
+        <button class="btn btn-quiet" data-action="shop-pick-cancel">Cancel</button>
+        <button class="btn btn-primary" data-action="shop-pick-add" ${n ? '' : 'disabled'}>Add ${n} item${n === 1 ? '' : 's'}</button>
+      </div>
+    </div>`;
+}
+
+function addPicked(recipe) {
+  const scale = scaleFor(recipe.id);
+  let list = account.shopping;
+  for (const ing of recipeIngredients(recipe)) {
+    if (!shopPick.picked.has(ing.id)) continue;
+    list = addItem(list, ing.item || ing.raw, {
+      recipeId: recipe.id,
+      title: recipe.title,
+      qty: ing.quantity != null ? ing.quantity * scale : null,
+      max: ing.quantityMax != null ? ing.quantityMax * scale : null,
+      unit: ing.unit,
+    });
+  }
+  const n = shopPick.picked.size;
+  account.saveShopping(list);
+  shopPick = null;
+  rerender();
+  toast(`Added ${n} item${n === 1 ? '' : 's'} to your shopping list`);
+}
+
+function shopItemHTML(item) {
+  const amount = amountText(item);
+  const titles = Object.values(item.recipes || {});
+  const editing = shopEditing === item.id;
+  return `
+    <li class="shop-item ${item.checked ? 'is-done' : ''}">
+      <button class="ing ${item.checked ? 'is-checked' : ''}" data-action="shop-check" data-id="${esc(item.id)}" aria-pressed="${Boolean(item.checked)}">
+        <span class="ing-box">${icon('check', 16)}</span>
+        <span class="ing-text">
+          <span class="shop-name">${esc(item.name)}${amount ? ` <b>${esc(amount)}</b>` : ''}</span>
+          ${titles.length ? `<span class="shop-for">${titles.map(esc).join(', ')}</span>` : ''}
+        </span>
+      </button>
+      <button class="iconbtn shop-more" data-action="shop-edit" data-id="${esc(item.id)}" aria-expanded="${editing}" aria-label="Change ${esc(item.name)}">${icon(editing ? 'up' : 'down', 18)}</button>
+      ${editing ? `
+        <div class="shop-edit">
+          <label class="sort"><span>Section</span>
+            <select class="shop-section" data-id="${esc(item.id)}">${SECTIONS.map(([k, label]) => `<option value="${k}" ${item.section === k ? 'selected' : ''}>${label}</option>`).join('')}</select>
+            ${icon('down', 16)}
+          </label>
+          <button class="linkbtn delete-btn" data-action="shop-remove" data-id="${esc(item.id)}">Remove</button>
+        </div>` : ''}
+    </li>`;
+}
+
+function renderShopping() {
+  document.body.dataset.view = 'shopping';
+  const items = liveItems(account.shopping);
+  const done = items.filter((i) => i.checked).length;
+  const recipes = new Map();
+  for (const i of items) for (const [id, title] of Object.entries(i.recipes || {})) if (!i.checked) recipes.set(id, title);
+  const sections = SECTIONS.map(([key, label]) => {
+    const list = items.filter((i) => (SECTIONS.some(([k]) => k === i.section) ? i.section : 'other') === key)
+      .sort((a, b) => Number(Boolean(a.checked)) - Number(Boolean(b.checked)) || a.name.localeCompare(b.name));
+    return list.length ? `
+      <section class="shop-section-block">
+        <h3>${label}</h3>
+        <ul class="shop-list">${list.map(shopItemHTML).join('')}</ul>
+      </section>` : '';
+  }).join('');
+  const body = !account.status.signedIn
+    ? `<p>Sign in with Google to keep a shopping list.</p>
+       <div class="add-actions"><button class="btn btn-primary" data-action="sign-in">Sign in</button></div>`
+    : `
+      <form class="shop-new" data-action="shop-new">
+        <input id="shop-new" value="${esc(shopText)}" placeholder="Add an item" autocomplete="off" enterkeyhint="done" aria-label="Add an item">
+        <button class="btn btn-primary" type="submit">Add</button>
+      </form>
+      ${items.length ? sections : '<p class="muted shop-empty">Nothing on the list. Add things here, or from a recipe’s ingredients.</p>'}
+      ${recipes.size ? `
+        <div class="shop-recipes">
+          <h3>For recipes</h3>
+          <div class="shop-chips">${[...recipes].map(([id, title]) => `
+            <span class="chip shop-chip"><a href="#/r/${encodeURIComponent(id)}">${esc(title)}</a>
+              <button data-action="shop-drop-recipe" data-id="${esc(id)}" aria-label="Take ${esc(title)} off the list">${icon('x', 14)}</button></span>`).join('')}
+          </div>
+        </div>` : ''}
+      ${done ? `<div class="add-actions"><button class="btn" data-action="shop-clear">Clear ${done} checked</button></div>` : ''}`;
+  app.innerHTML = `
+    <div class="add shopping">
+      <header class="topbar">
+        <a class="iconbtn" href="#/" aria-label="All recipes">${icon('back')}</a>
+        <div class="topbar-title"><h1>Shopping list</h1></div>
+      </header>
+      <div class="add-body panel">${body}</div>
+    </div>`;
+}
+
+function shopSave(list) {
+  account.saveShopping(list);
+  renderShopping();
 }
 
 // Deleting asks once more in place, so a stray tap can't remove a recipe.
@@ -1299,6 +1460,7 @@ function parseRoute() {
   // #/add, or #/add?url=… when a link is shared to Mise.
   if (/^add(\?|$)/.test(raw)) return { name: 'add', params: new URLSearchParams(raw.slice(4)) };
   if (raw === 'categories') return { name: 'categories' };
+  if (raw === 'shopping') return { name: 'shopping' };
   const parts = raw.split('/').map(decodeURIComponent);
   if (parts[0] === 'r' && parts[1]) {
     if (parts[2] === 's') return { name: 'step', id: parts[1], n: parseInt(parts[3], 10) || 1 };
@@ -1334,6 +1496,9 @@ function render() {
     // Keep a change in progress (say, after signing in again); otherwise start fresh.
     if (draft.editing !== recipe.id) startEdit(recipe);
     renderAdd();
+  } else if (route.name === 'shopping') {
+    if (prev?.name !== 'shopping') shopEditing = null;
+    renderShopping();
   } else if (route.name === 'categories') {
     accountMenuOpen = false;
     // Back goes to the recipe being edited, if that's where this was opened from.
@@ -1356,7 +1521,7 @@ function render() {
     renderLibrary();
   }
 
-  setAwake(!['library', 'add', 'edit', 'categories'].includes(route.name));
+  setAwake(!['library', 'add', 'edit', 'categories', 'shopping'].includes(route.name));
   const sameScreen = prev && prev.name === route.name && prev.id === route.id && prev.n === route.n;
   if (!sameScreen) window.scrollTo(0, 0);
 }
@@ -1396,6 +1561,10 @@ app.addEventListener('input', (e) => {
     saveDraft();
     return;
   }
+  if (e.target.id === 'shop-new') {
+    shopText = e.target.value;
+    return;
+  }
   if (e.target.classList.contains('cat-name')) {
     catEdit.rows[Number(e.target.dataset.row)].name = e.target.value;
     return;
@@ -1422,6 +1591,10 @@ app.addEventListener('change', (e) => {
     addPhotos(e.target.files);
     return;
   }
+  if (e.target.classList.contains('shop-section')) {
+    shopSave(updateItem(account.shopping, e.target.dataset.id, { section: e.target.value }));
+    return;
+  }
   if (e.target.classList.contains('cat-move-to')) {
     catEdit.rows[Number(e.target.dataset.row)].moveTo = Number(e.target.value);
     return;
@@ -1435,6 +1608,23 @@ app.addEventListener('change', (e) => {
   if (e.target.id !== 'add-category') return;
   draft.recipe.category = e.target.value;
   saveDraft();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (shopPick && e.key === 'Escape') {
+    shopPick = null;
+    rerender();
+  }
+});
+
+app.addEventListener('submit', (e) => {
+  if (e.target.dataset.action !== 'shop-new') return;
+  e.preventDefault();
+  const name = shopText.trim();
+  if (!name) return;
+  shopText = '';
+  shopSave(addItem(account.shopping, name));
+  document.getElementById('shop-new')?.focus();
 });
 
 app.addEventListener('click', (e) => {
@@ -1545,6 +1735,51 @@ app.addEventListener('click', (e) => {
       location.hash = `#/r/${encodeURIComponent(id)}`;
       break;
     }
+    case 'shop-pick':
+      startShopPick(recipe);
+      rerender();
+      document.querySelector('.sheet .btn-primary')?.focus();
+      break;
+    case 'shop-pick-cancel':
+      shopPick = null;
+      rerender();
+      break;
+    case 'shop-pick-toggle': {
+      // Changed in place, so the list keeps its scroll position.
+      const id = el.dataset.ing;
+      const on = !shopPick.picked.has(id);
+      if (on) shopPick.picked.add(id);
+      else shopPick.picked.delete(id);
+      el.classList.toggle('is-checked', on);
+      el.setAttribute('aria-pressed', on);
+      const n = shopPick.picked.size;
+      const btn = document.querySelector('[data-action="shop-pick-add"]');
+      btn.textContent = `Add ${n} item${n === 1 ? '' : 's'}`;
+      btn.disabled = !n;
+      break;
+    }
+    case 'shop-pick-add':
+      addPicked(recipe);
+      break;
+    case 'shop-check': {
+      const item = account.shopping.items[el.dataset.id];
+      shopSave(updateItem(account.shopping, item.id, { checked: !item.checked }));
+      break;
+    }
+    case 'shop-edit':
+      shopEditing = shopEditing === el.dataset.id ? null : el.dataset.id;
+      renderShopping();
+      break;
+    case 'shop-remove':
+      shopEditing = null;
+      shopSave(removeItems(account.shopping, [el.dataset.id]));
+      break;
+    case 'shop-clear':
+      shopSave(removeItems(account.shopping, liveItems(account.shopping).filter((i) => i.checked).map((i) => i.id)));
+      break;
+    case 'shop-drop-recipe':
+      shopSave(removeRecipe(account.shopping, el.dataset.id));
+      break;
     case 'cat-add':
       catEdit.rows.push({ name: '', was: null, count: 0, removed: false, moveTo: null });
       renderCategories();

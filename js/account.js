@@ -1,7 +1,7 @@
 import { CONFIG } from '../config.js';
 
-// Optional Google sign-in that keeps favorites and recently opened recipes in
-// step across devices. The state lives in the Drive "app data" folder: a
+// Optional Google sign-in that keeps favorites, recently opened recipes and
+// the shopping list in step across devices. The state lives in the Drive "app data" folder: a
 // hidden, per-app space this app can see and nothing else in the user's Drive.
 //
 // Sign-in is a page redirect rather than a popup, because popups don't work
@@ -22,6 +22,9 @@ const RECORD_KEY = 'mise.sync.v1';
 const PENDING_KEY = 'mise.signin.v1';
 
 const KEEP_OPENED = 30;
+// How long a removed shopping item is remembered, so a device that was
+// offline doesn't bring it back.
+const KEEP_REMOVED_MS = 30 * 24 * 60 * 60 * 1000;
 const SILENT_RETRY_MS = 60 * 1000;
 const PUSH_DELAY_MS = 1500;
 
@@ -46,8 +49,16 @@ function write(key, value) {
 // keeps the latest choice: unstarring on the iPad sticks on the laptop.
 //   favorites: { [recipeId]: { on: true|false, at: ms } }
 //   opened:    { [recipeId]: ms }
+//   shopping:  { items, aisles }, each entry with its own time (see shopping.js)
 function emptyRecord() {
-  return { favorites: {}, opened: {} };
+  return { favorites: {}, opened: {}, shopping: { items: {}, aisles: {} } };
+}
+
+// The newer of each entry, by its `at`.
+function newest(a = {}, b = {}) {
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) if (!out[k] || v.at > out[k].at) out[k] = v;
+  return out;
 }
 
 function seedRecord({ favorites, recent }) {
@@ -69,14 +80,24 @@ function merge(a, b) {
   for (const [id, at] of Object.entries(b.opened || {})) {
     if (!(opened[id] >= at)) opened[id] = at;
   }
-  const newest = Object.entries(opened).sort((x, y) => y[1] - x[1]).slice(0, KEEP_OPENED);
-  return { favorites, opened: Object.fromEntries(newest) };
+  const recent = Object.entries(opened).sort((x, y) => y[1] - x[1]).slice(0, KEEP_OPENED);
+  const since = Date.now() - KEEP_REMOVED_MS;
+  const items = Object.entries(newest(a.shopping?.items, b.shopping?.items))
+    .filter(([, i]) => !i.deleted || i.at > since);
+  return {
+    favorites,
+    opened: Object.fromEntries(recent),
+    shopping: { items: Object.fromEntries(items), aisles: newest(a.shopping?.aisles, b.shopping?.aisles) },
+  };
 }
 
 // Same content, same string: used to skip writes that change nothing.
 function canon(record) {
-  const sorted = (o) => Object.fromEntries(Object.entries(o).sort(([x], [y]) => x.localeCompare(y)));
-  return JSON.stringify({ favorites: sorted(record.favorites), opened: sorted(record.opened) });
+  const sorted = (o) => Object.fromEntries(Object.entries(o || {}).sort(([x], [y]) => x.localeCompare(y)));
+  const { items, aisles } = record.shopping || {};
+  return JSON.stringify({
+    favorites: sorted(record.favorites), opened: sorted(record.opened), items: sorted(items), aisles: sorted(aisles),
+  });
 }
 
 function lists(record) {
@@ -97,7 +118,7 @@ class AuthError extends Error {}
 export function createAccount({ seed, onChange, onStatus, canRedirect }) {
   const enabled = Boolean(CONFIG.googleClientId);
   let acct = read(ACCOUNT_KEY) || {};
-  let record = read(RECORD_KEY) || seedRecord(seed());
+  let record = merge(emptyRecord(), read(RECORD_KEY) || seedRecord(seed()));
   let state = 'idle'; // idle | syncing | synced | offline | error
   let syncedAt = null;
   let queue = Promise.resolve();
@@ -279,6 +300,12 @@ export function createAccount({ seed, onChange, onStatus, canRedirect }) {
     if (tokenValid()) schedulePush();
   }
 
+  function saveShopping(list) {
+    record = { ...record, shopping: list };
+    write(RECORD_KEY, record);
+    if (tokenValid()) schedulePush();
+  }
+
   function signOut() {
     if (acct.token) {
       fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(acct.token)}`, {
@@ -323,6 +350,11 @@ export function createAccount({ seed, onChange, onStatus, canRedirect }) {
     sync,
     noteFavorite,
     noteOpened,
+    saveShopping,
+    /** The shopping list: { items, aisles }. */
+    get shopping() {
+      return record.shopping;
+    },
     /** The current Google access token, or null when it has expired. */
     token: () => (tokenValid() ? acct.token : null),
     get status() {

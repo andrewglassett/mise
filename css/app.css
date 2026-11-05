@@ -972,3 +972,59 @@ body.is-alarming .alarm-flash { animation: alarm-flash 1.2s ease-in-out infinite
 [data-retro] .add-photo-pick { border: 0; background: #c0c0c0; box-shadow: var(--raised); color: #000; }
 [data-retro] .add-photo { box-shadow: var(--sunken); padding: 2px; background: #fff; }
 [data-retro] .add-photo-x { background: #c0c0c0; color: #000; box-shadow: var(--raised); }
+
+/* ---------- shopping list ---------- */
+
+.tool { position: relative; }
+.tool-count {
+  position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px;
+  display: grid; place-items: center; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink); font-size: 0.7rem; font-weight: 700; letter-spacing: 0;
+}
+.shop-add { margin-top: 14px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* Picking a recipe's ingredients: a sheet from the bottom on phones, a dialog on wide screens. */
+.sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 0.35); }
+.sheet {
+  position: fixed; z-index: 41; left: 0; right: 0; bottom: 0; max-height: 85dvh;
+  display: flex; flex-direction: column; background: var(--surface);
+  border-radius: 20px 20px 0 0; box-shadow: var(--shadow);
+  padding: 20px var(--gutter-r) calc(var(--bottom) + 14px) var(--gutter);
+}
+.sheet-head h2 { font: 600 1.3rem var(--serif); margin: 0; }
+.sheet-head p { margin: 4px 0 8px; font-size: 0.9rem; }
+.sheet-list { overflow-y: auto; flex: 1; min-height: 0; }
+.sheet .ing.is-checked .ing-text { color: inherit; text-decoration: none; }
+.sheet-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 12px; border-top: 1px solid var(--line); }
+@media (min-width: 700px) {
+  .sheet {
+    left: 50%; right: auto; bottom: auto; top: 50%; transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 48px)); max-height: 80dvh; border-radius: 20px; padding: 24px;
+  }
+}
+
+.shop-new { display: flex; gap: 8px; }
+.shop-new input {
+  flex: 1; min-width: 0; min-height: 48px; padding: 10px 14px; font: inherit; font-size: 1rem;
+  color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+}
+.shop-new input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.shopping .add-body h3 { margin: 4px 0 2px; }
+.shop-list { list-style: none; margin: 0; padding: 0; }
+.shop-item { display: flex; flex-wrap: wrap; align-items: center; }
+.shop-item + .shop-item { border-top: 1px solid var(--line); }
+.shopping .add-body > * { min-width: 0; }
+.shop-item .ing { flex: 1; min-width: 0; width: auto; }
+.shop-item .ing.is-checked .ing-text { text-decoration: none; }
+.shop-item.is-done .shop-name { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.shop-name b { font-weight: 650; color: var(--muted); margin-left: 4px; white-space: nowrap; }
+.shop-for { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+.shop-more { width: 40px; height: 40px; background: transparent; color: var(--muted); }
+.shop-edit { flex-basis: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 12px 36px; }
+.shop-edit .sort { flex: 1; min-width: 0; }
+.shop-edit select { min-width: 0; width: 100%; }
+.shop-empty { margin: 8px 0; }
+.shop-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.shop-chip { display: inline-flex; align-items: center; gap: 4px; padding-right: 6px; }
+.shop-chip a { color: inherit; }
+.shop-chip button { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--muted); }
