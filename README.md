@@ -139,6 +139,16 @@ Now **Add to Mise** appears when you tap Share. It opens Mise in Safari rather t
 
 **Android:** add Mise to your home screen from Chrome and it appears in the share sheet by itself.
 
+## Visit statistics (optional)
+
+Mise can send visit statistics, heatmaps and session recordings to [PostHog](https://posthog.com). The free plan is plenty for a personal site.
+
+1. Make a PostHog project and copy its project key (it starts with `phc_` and is meant to be public).
+2. Put it in `posthogKey` in [`config.js`](config.js). For an EU project, set `posthogHost` to `https://eu.i.posthog.com`.
+3. In PostHog's project settings, turn on heatmaps and session replay.
+
+Nothing is sent from localhost or for anyone signed in, so your own use doesn't count. Besides page views, Mise sends events for opening a recipe, starting to cook, each step, finishing, timers, searches, filters, sorting, scaling and favorites. The privacy page describes all of this; update it if you change what's collected.
+
 ## Running it on your computer
 
 ```bash

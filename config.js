@@ -24,6 +24,12 @@ export const CONFIG = {
   // See README.md.
   addRecipeUrl: 'https://mise-add.mise-add.workers.dev',
 
+  // Optional: a PostHog project key turns on visit stats, heatmaps and session
+  // recordings for visitors (not for anyone signed in, and never on localhost).
+  // posthogHost is https://eu.i.posthog.com for an EU project. See README.md.
+  posthogKey: 'phc_tZzsPfadxA7K6JHSfKsvJnpJiRtwAuoytvbViKfsN8jP',
+  posthogHost: 'https://us.i.posthog.com',
+
   // How often to check for newer recipes while the app is open.
   pollMinutes: 5,
 

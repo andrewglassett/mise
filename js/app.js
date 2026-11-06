@@ -5,6 +5,7 @@ import {
 import { artHTML } from './art.js';
 import { mountTimers, startTimer, startQuickTimer, isRunning } from './timers.js';
 import { createAccount } from './account.js';
+import { startAnalytics, track } from './analytics.js';
 import {
   SECTIONS, isStaple, amountText, liveItems, onList, addItem, updateItem, removeItems, removeRecipe,
 } from './shopping.js';
@@ -296,11 +297,16 @@ function isFavorite(id) {
   return ui.favorites.includes(id);
 }
 
+// A method Claude wrote rather than the author: a note for the owner, not for guests.
+function untested(r) {
+  return r.methodSource === 'suggested' && account.status.signedIn;
+}
+
 function badgesHTML(r) {
   return [
     ...(r.tags || []).map((t) => `<span class="pill">${esc(t)}</span>`),
     r.type === 'notes' ? `<span class="pill pill-quiet">${icon('note', 14)} Notes</span>` : '',
-    r.methodSource === 'suggested' ? '<span class="pill pill-warn">Untested method</span>' : '',
+    untested(r) ? '<span class="pill pill-warn">Untested method</span>' : '',
   ].join('');
 }
 
@@ -708,7 +714,7 @@ function renderOverview(recipe) {
           ${account.status.signedIn && recipe.ingredientGroups?.length ? `<button class="btn shop-add" data-action="shop-pick">${icon('bag', 18)} Add to shopping list</button>` : ''}
         </section>
         <section class="panel info-panel">
-          ${recipe.methodSource === 'suggested' ? '<p class="banner banner-warn">Untested method: this is a typical method, not the original author\'s.</p>' : ''}
+          ${untested(recipe) ? '<p class="banner banner-warn">Untested method: this is a typical method, not the original author\'s.</p>' : ''}
           ${listView ? methodHTML(recipe, { primary: true }) : ''}
           ${heat ? `<div class="callout">${icon('flame', 28)}<div><span>Preheat</span><strong>${heat.value}°${esc(heat.unit)}</strong></div></div>` : ''}
           <dl class="facts">
@@ -1523,8 +1529,26 @@ function render() {
 
   setAwake(!['library', 'add', 'edit', 'categories', 'shopping'].includes(route.name));
   const sameScreen = prev && prev.name === route.name && prev.id === route.id && prev.n === route.n;
-  if (!sameScreen) window.scrollTo(0, 0);
+  if (!sameScreen) {
+    window.scrollTo(0, 0);
+    trackScreen(route, prev, recipe);
+  }
 }
+
+// A page view for each screen, plus the cooking moments worth counting.
+function trackScreen(route, prev, recipe) {
+  track('$pageview');
+  const about = recipe && { recipe: recipe.id, title: recipe.title, category: recipe.category };
+  if (route.name === 'overview') track('recipe opened', about);
+  if (route.name === 'step') {
+    const steps = allSteps(recipe).length;
+    if (route.n === 1 && !(prev?.name === 'step' && prev.id === route.id)) track('cooking started', about);
+    track('step viewed', { ...about, step: route.n, steps });
+  }
+  if (route.name === 'done') track('cooking finished', about);
+}
+
+let searchTimer = null;
 
 // Re-render without losing scroll position (checkbox taps, scale changes).
 function rerender() {
@@ -1577,6 +1601,9 @@ app.addEventListener('input', (e) => {
   if (e.target.id !== 'q') return;
   ui.q = e.target.value;
   saveUI();
+  // Counted once typing pauses, not per letter.
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { if (ui.q.trim()) track('searched', { query: ui.q.trim() }); }, 1200);
   document.querySelector('.search-clear').hidden = !ui.q;
   renderResults();
 });
@@ -1601,6 +1628,7 @@ app.addEventListener('change', (e) => {
   }
   if (e.target.id === 'sort') {
     ui.sort = e.target.value;
+    track('list sorted', { sort: ui.sort });
     saveUI();
     renderResults();
     return;
@@ -1637,6 +1665,7 @@ app.addEventListener('click', (e) => {
     case 'category':
       ui.category = el.dataset.cat;
       saveUI();
+      track('category chosen', { category: ui.category === FAVORITES ? 'Favorites' : ui.category });
       renderLibrary();
       window.scrollTo(0, 0);
       break;
@@ -1646,6 +1675,7 @@ app.addEventListener('click', (e) => {
       ui.favorites = on ? [...ui.favorites, id] : ui.favorites.filter((x) => x !== id);
       saveUI();
       account.noteFavorite(id, on);
+      track(on ? 'favorited' : 'unfavorited', { recipe: id });
       if (el.dataset.id) refreshHome();
       else rerender();
       break;
@@ -1654,6 +1684,7 @@ app.addEventListener('click', (e) => {
       const t = el.dataset.tag;
       ui.tags = ui.tags.includes(t) ? ui.tags.filter((x) => x !== t) : [...ui.tags, t];
       saveUI();
+      if (ui.tags.includes(t)) track('tag chosen', { tag: t });
       renderLibrary();
       break;
     }
@@ -1670,6 +1701,7 @@ app.addEventListener('click', (e) => {
       break;
     case 'quick-timer':
       startQuickTimer(5 * 60);
+      track('timer started', { quick: true, seconds: 300 });
       break;
     case 'home':
       // The logotype: back to every recipe. The theme is left alone.
@@ -1708,6 +1740,8 @@ app.addEventListener('click', (e) => {
     case 'sign-out':
       account.signOut();
       setAccountMenu(false);
+      // Owner-only bits, like untested-method notes, go away.
+      rerender();
       toast('Signed out · favorites stay on this device');
       break;
     case 'add-mode':
@@ -1820,6 +1854,7 @@ app.addEventListener('click', (e) => {
       break;
     case 'scale':
       ui.scale[recipe.id] = Number(el.dataset.scale);
+      track('recipe scaled', { recipe: recipe.id, scale: ui.scale[recipe.id] });
       saveUI();
       rerender();
       break;
@@ -1851,6 +1886,7 @@ app.addEventListener('click', (e) => {
       const step = allSteps(recipe).find((x) => x.number === Number(el.dataset.step));
       const t = step?.timers?.[Number(el.dataset.timer)];
       if (!t) break;
+      track('timer started', { recipe: recipe.id, step: step.number, timer: t.label });
       startTimer({
         recipeId: recipe.id,
         recipeTitle: recipe.title,
@@ -1923,6 +1959,7 @@ if (sharedQuery.get('url') || sharedQuery.get('text')) {
 // When the account needs a fresh sign-in, the page goes to Google and comes
 // straight back, so skip drawing it in between.
 if (!account.start()) {
+  startAnalytics({ signedIn: account.status.signedIn });
   render();
   store.start();
 }
